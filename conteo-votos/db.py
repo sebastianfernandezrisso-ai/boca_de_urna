@@ -1,9 +1,13 @@
 import os
 from sqlalchemy import create_engine, text
+import streamlit as st
 
-DATABASE_URL = "postgresql://postgres:Matanza2941@db.vjhpuimpxssekyhoqwqu.supabase.co:5432/postgres"
+
+DATABASE_URL = st.secrets["postgresql://postgres:Matanza2941@db.vjhpuimpxssekyhoqwqu.supabase.co:5432/postgres"]
 
 engine = create_engine(DATABASE_URL)
+
+
 
 def create_table():
     with engine.connect() as conn:
@@ -24,3 +28,4 @@ def create_table():
 
         """))
         conn.commit()
+

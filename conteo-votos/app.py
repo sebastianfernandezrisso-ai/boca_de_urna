@@ -140,38 +140,25 @@ with tab2:
 
         st.divider()
 
-                # =========================
-        # ELIMINAR MESA (CON CONFIRMACIÓN)
         # =========================
-        st.markdown("### 🗑️ Eliminar Mesa")
+        # ELIMINAR MESA
+        # =========================
+        st.markdown("### Eliminar Mesa")
 
         mesa_a_eliminar = st.selectbox(
-            "Seleccionar mesa a eliminar",
-            df["mesa"].unique(),
-            key="mesa_delete"
+            "Seleccionar mesa",
+            df["mesa"].unique()
         )
 
-        if st.button("Eliminar mesa seleccionada", type="secondary"):
+        if st.button("🗑️ Eliminar Mesa"):
+            with engine.begin() as conn:
+                conn.execute(
+                    text("DELETE FROM mesas WHERE mesa = :mesa"),
+                    {"mesa": mesa_a_eliminar}
+                )
 
-            st.warning(f"⚠️ Estás por eliminar la mesa {mesa_a_eliminar}. Esta acción no se puede deshacer.")
-
-            confirmar = st.checkbox(
-                "Confirmo que deseo eliminar esta mesa permanentemente",
-                key="confirm_delete"
-            )
-
-            if confirmar:
-                if st.button("🛑 CONFIRMAR ELIMINACIÓN", type="primary"):
-
-                    with engine.begin() as conn:
-                        conn.execute(
-                            text("DELETE FROM mesas WHERE mesa = :mesa"),
-                            {"mesa": mesa_a_eliminar}
-                        )
-
-                    st.success("Mesa eliminada correctamente")
-                    st.rerun()
-
+            st.success("Mesa eliminada correctamente")
+            st.rerun()
 
         st.divider()
 
@@ -189,6 +176,7 @@ with tab2:
             porcentajes = (totales / total_votos * 100).round(2)
             st.markdown("#### Porcentajes")
             st.dataframe(porcentajes.to_frame("%"))
+
 
     
 
@@ -240,5 +228,6 @@ with tab3:
 
     st.markdown("#### Porcentajes por Localidad")
     st.dataframe(df_porcentajes, use_container_width=True)
+
 
 

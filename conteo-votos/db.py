@@ -2,8 +2,7 @@ import os
 from sqlalchemy import create_engine, text
 import streamlit as st
 
-
-DATABASE_URL = st.secrets["postgresql://postgres:Matanza2941@db.vjhpuimpxssekyhoqwqu.supabase.co:5432/postgres"]
+DATABASE_URL = st.secrets["DATABASE_URL"]
 
 engine = create_engine(DATABASE_URL)
 

@@ -1,33 +1,30 @@
-import os
-from sqlalchemy import create_engine, text
 import streamlit as st
+from sqlalchemy import create_engine, text
 
 DATABASE_URL = st.secrets["DATABASE_URL"]
+
 engine = create_engine(
     DATABASE_URL,
-    pool_pre_ping=True
+    pool_pre_ping=True,
+    connect_args={"sslmode": "require"}
 )
-engine = create_engine(DATABASE_URL)
-
-
 
 def create_table():
-    with engine.connect() as conn:
+    with engine.begin() as conn:
         conn.execute(text("""
-        CREATEKEY,
-    mesa TEXT UNIQUE,
-    sede TEXT,
-    localidad TEXT,
-    movimiento INTEGER,
-    lista2 INTEGER,
-    lista3 INTEGER,
-    blanco INTEGER,
-    impugnados INTEGER,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
-
+            CREATE TABLE IF NOT EXISTS mesas (
+                id SERIAL PRIMARY KEY,
+                mesa TEXT UNIQUE,
+                sede TEXT,
+                localidad TEXT,
+                movimiento INTEGER,
+                lista2 INTEGER,
+                lista3 INTEGER,
+                blanco INTEGER,
+                impugnados INTEGER,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
         """))
-        conn.commit()
+
 
 

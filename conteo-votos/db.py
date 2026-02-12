@@ -3,7 +3,10 @@ from sqlalchemy import create_engine, text
 import streamlit as st
 
 DATABASE_URL = st.secrets["DATABASE_URL"]
-
+engine = create_engine(
+    DATABASE_URL,
+    pool_pre_ping=True
+)
 engine = create_engine(DATABASE_URL)
 
 
@@ -11,8 +14,7 @@ engine = create_engine(DATABASE_URL)
 def create_table():
     with engine.connect() as conn:
         conn.execute(text("""
-        CREATE TABLE IF NOT EXISTS mesas (
-    id SERIAL PRIMARY KEY,
+        CREATEKEY,
     mesa TEXT UNIQUE,
     sede TEXT,
     localidad TEXT,
@@ -27,4 +29,5 @@ def create_table():
 
         """))
         conn.commit()
+
 

@@ -1,0 +1,167 @@
+import streamlit as st
+import pandas as pd
+from sqlalchemy import text
+from sqlalchemy.exc import IntegrityError
+from db import engine, create_table
+
+st.set_page_config(layout="wide")
+
+create_table()
+
+st.title("🗳️ Fiscalización")
+
+# =============================
+# TABS
+# =============================
+tab1, tab2, tab3 = st.tabs([
+    "📝 Carga de Mesa",
+    "📊 Totales Generales",
+    "🏙️ Totales por Localidad"
+])
+
+# =====================================================
+# 📝 TAB 1 - CARGA
+# =====================================================
+with tab1:
+
+    st.markdown("### Carga de Mesa")
+
+    col_c1, col_c2, col_c3 = st.columns([1,2,1])
+
+    with col_c2:
+        with st.form("carga"):
+
+            mesa = st.text_input("Mesa")
+
+            col1, col2 = st.columns(2)
+
+            with col1:
+                movimiento = st.number_input("Movimiento", min_value=0)
+                lista2 = st.number_input("Lista 2", min_value=0)
+                blanco = st.number_input("Blanco", min_value=0)
+
+            with col2:
+                lista3 = st.number_input("Lista 3", min_value=0)
+                impugnados = st.number_input("Impugnados", min_value=0)
+
+            submit = st.form_submit_button("Guardar")
+
+            if submit:
+
+                query = text("SELECT sede, localidad FROM mesas_padron WHERE mesa = :mesa")
+                result = pd.read_sql(query, engine, params={"mesa": mesa})
+
+                if result.empty:
+                    st.error("Mesa no existe en padrón")
+
+                else:
+                    sede = result.iloc[0]["sede"]
+                    localidad = result.iloc[0]["localidad"]
+
+                    check_query = text("SELECT id FROM mesas WHERE mesa = :mesa")
+                    existe = pd.read_sql(check_query, engine, params={"mesa": mesa})
+
+                    if not existe.empty:
+                        st.warning("Esa mesa ya está cargada")
+
+                    else:
+                        try:
+                            with engine.begin() as conn:
+                                conn.execute(text("""
+                                    INSERT INTO mesas
+                                    (mesa, sede, localidad, movimiento, lista2, lista3, blanco, impugnados)
+                                    VALUES (:mesa, :sede, :localidad, :movimiento, :lista2, :lista3, :blanco, :impugnados)
+                                """), {
+                                    "mesa": mesa,
+                                    "sede": sede,
+                                    "localidad": localidad,
+                                    "movimiento": movimiento,
+                                    "lista2": lista2,
+                                    "lista3": lista3,
+                                    "blanco": blanco,
+                                    "impugnados": impugnados
+                                })
+
+                            st.success("Mesa cargada correctamente")
+
+                        except IntegrityError:
+                            st.warning("Esa mesa ya está cargada")
+
+
+# =====================================================
+# 📊 TAB 2 - TOTALES GENERALES
+# =====================================================
+with tab2:
+
+    st.markdown("### Totales Generales")
+
+    df = pd.read_sql("SELECT * FROM mesas", engine)
+
+    cols = ["movimiento", "lista2", "lista3", "blanco", "impugnados"]
+    df[cols] = df[cols].apply(pd.to_numeric, errors="coerce").fillna(0)
+
+
+    if df.empty:
+        st.info("Aún no hay datos cargados.")
+    else:
+        totales = df[["movimiento", "lista2", "lista3", "blanco", "impugnados"]].sum()
+
+        st.dataframe(totales.to_frame("Total"))
+
+        total_votos = totales.sum()
+
+        if total_votos > 0:
+            porcentajes = (totales / total_votos * 100).round(2)
+            st.markdown("#### Porcentajes")
+            st.dataframe(porcentajes.to_frame("%"))
+    
+
+
+# =====================================================
+# 🏙️ TAB 3 - TOTALES POR LOCALIDAD
+# =====================================================
+with tab3:
+
+    st.markdown("### Totales por Localidad")
+
+    df = pd.read_sql("SELECT * FROM mesas", engine)
+
+    cols = ["movimiento", "lista2", "lista3", "blanco", "impugnados"]
+    df[cols] = df[cols].apply(pd.to_numeric, errors="coerce").fillna(0)
+
+
+    if df.empty:
+        st.info("Aún no hay datos cargados.")
+    else:
+
+        agrupado = df.groupby("localidad")[[
+            "movimiento", "lista2", "lista3", "blanco", "impugnados"
+        ]].sum().reset_index()
+
+        st.dataframe(agrupado, use_container_width=True)
+
+        # Calcular porcentajes por localidad (FORMA CORRECTA Y VECTORIAL)
+    columnas = ["movimiento", "lista2", "lista3", "blanco", "impugnados"]
+
+    totales_localidad = agrupado[columnas].sum(axis=1)
+
+    df_porcentajes = agrupado.copy()
+
+    df_porcentajes[columnas] = (
+    df_porcentajes[columnas]
+    .div(totales_localidad, axis=0)
+    .multiply(100)
+    .round(2)
+)
+
+    df_porcentajes = df_porcentajes.rename(columns={    
+    "movimiento": "% Movimiento",
+    "lista2": "% Lista 2",
+    "lista3": "% Lista 3",
+    "blanco": "% Blanco",
+    "impugnados": "% Impugnados",
+    })
+
+    st.markdown("#### Porcentajes por Localidad")
+    st.dataframe(df_porcentajes, use_container_width=True)
+

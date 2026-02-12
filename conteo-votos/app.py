@@ -89,23 +89,98 @@ with tab1:
 
 
 # =====================================================
-# 📊 TAB 2 - TOTALES GENERALES
+# 📊 TAB 2 - MESAS + TOTALES GENERALES
 # =====================================================
 with tab2:
 
-    st.markdown("### Totales Generales")
+    st.markdown("### Mesas Cargadas")
 
-    df = pd.read_sql("SELECT * FROM mesas", engine)
-
-    cols = ["movimiento", "lista2", "lista3", "blanco", "impugnados"]
-    df[cols] = df[cols].apply(pd.to_numeric, errors="coerce").fillna(0)
-
+    df = pd.read_sql("SELECT * FROM mesas ORDER BY created_at DESC", engine)
 
     if df.empty:
         st.info("Aún no hay datos cargados.")
     else:
-        totales = df[["movimiento", "lista2", "lista3", "blanco", "impugnados"]].sum()
 
+        cols_numericas = ["movimiento", "lista2", "lista3", "blanco", "impugnados"]
+        df[cols_numericas] = df[cols_numericas].apply(pd.to_numeric, errors="coerce").fillna(0)
+
+        # =========================
+        # EDITOR
+        # =========================
+        edited_df = st.data_editor(
+            df,
+            use_container_width=True,
+            num_rows="fixed",
+            disabled=["id", "mesa", "sede", "localidad", "created_at"],
+            key="editor_mesas"
+        )
+
+        if st.button("💾 Guardar cambios"):
+            with engine.begin() as conn:
+                for _, row in edited_df.iterrows():
+                    conn.execute(text("""
+                        UPDATE mesas SET
+                            movimiento = :movimiento,
+                            lista2 = :lista2,
+                            lista3 = :lista3,
+                            blanco = :blanco,
+                            impugnados = :impugnados
+                        WHERE id = :id
+                    """), {
+                        "movimiento": int(row["movimiento"]),
+                        "lista2": int(row["lista2"]),
+                        "lista3": int(row["lista3"]),
+                        "blanco": int(row["blanco"]),
+                        "impugnados": int(row["impugnados"]),
+                        "id": int(row["id"])
+                    })
+
+            st.success("Cambios guardados correctamente")
+            st.rerun()
+
+        st.divider()
+
+                # =========================
+        # ELIMINAR MESA (CON CONFIRMACIÓN)
+        # =========================
+        st.markdown("### 🗑️ Eliminar Mesa")
+
+        mesa_a_eliminar = st.selectbox(
+            "Seleccionar mesa a eliminar",
+            df["mesa"].unique(),
+            key="mesa_delete"
+        )
+
+        if st.button("Eliminar mesa seleccionada", type="secondary"):
+
+            st.warning(f"⚠️ Estás por eliminar la mesa {mesa_a_eliminar}. Esta acción no se puede deshacer.")
+
+            confirmar = st.checkbox(
+                "Confirmo que deseo eliminar esta mesa permanentemente",
+                key="confirm_delete"
+            )
+
+            if confirmar:
+                if st.button("🛑 CONFIRMAR ELIMINACIÓN", type="primary"):
+
+                    with engine.begin() as conn:
+                        conn.execute(
+                            text("DELETE FROM mesas WHERE mesa = :mesa"),
+                            {"mesa": mesa_a_eliminar}
+                        )
+
+                    st.success("Mesa eliminada correctamente")
+                    st.rerun()
+
+
+        st.divider()
+
+        # =========================
+        # TOTALES GENERALES
+        # =========================
+        st.markdown("### Totales Generales")
+
+        totales = edited_df[cols_numericas].sum()
         st.dataframe(totales.to_frame("Total"))
 
         total_votos = totales.sum()
@@ -114,6 +189,7 @@ with tab2:
             porcentajes = (totales / total_votos * 100).round(2)
             st.markdown("#### Porcentajes")
             st.dataframe(porcentajes.to_frame("%"))
+
     
 
 
@@ -164,4 +240,5 @@ with tab3:
 
     st.markdown("#### Porcentajes por Localidad")
     st.dataframe(df_porcentajes, use_container_width=True)
+
 

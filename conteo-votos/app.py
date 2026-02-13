@@ -198,7 +198,7 @@ with tab2:
         if total_votos > 0:
             porcentajes = (totales / total_votos * 100).round(2).sort_values(ascending=False)
             st.markdown("#### Porcentajes")
-            st.dataframe(colorear filas(porcentajes.to_frame("%")), use_container_width=True)
+            st.dataframe(colorear_filas(porcentajes.to_frame("%")), use_container_width=True)
 
 
     
@@ -262,6 +262,7 @@ with tab3:
         )
 st.metric("🗳️ Mesas cargadas", len(df))
 st.metric("📊 Total de votos cargados", int(df[cols_numericas].sum().sum()))
+
 
 
 

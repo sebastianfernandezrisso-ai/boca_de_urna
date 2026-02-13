@@ -167,13 +167,13 @@ with tab2:
         # =========================
         st.markdown("### Totales Generales")
 
-        totales = edited_df[cols_numericas].sum()
+        totales = edited_df[cols_numericas].sum().sort_values(ascending=False)
         st.dataframe(totales.to_frame("Total"))
 
         total_votos = totales.sum()
 
         if total_votos > 0:
-            porcentajes = (totales / total_votos * 100).round(2)
+            porcentajes = (totales / total_votos * 100).round(2).sort_values(ascending=False)
             st.markdown("#### Porcentajes")
             st.dataframe(porcentajes.to_frame("%"))
 
@@ -182,7 +182,7 @@ with tab2:
 
 
 # =====================================================
-# 🏙️ TAB 3 - TOTALES POR LOCALIDAD
+# 🏙️ TAB 3 - TOTALES POR LOCALIDAD (ORDENADOS)
 # =====================================================
 with tab3:
 
@@ -191,43 +191,57 @@ with tab3:
     df = pd.read_sql("SELECT * FROM mesas", engine)
 
     cols = ["movimiento", "lista2", "lista3", "blanco", "impugnados"]
-    df[cols] = df[cols].apply(pd.to_numeric, errors="coerce").fillna(0)
-
 
     if df.empty:
         st.info("Aún no hay datos cargados.")
     else:
+        # Convertir a numérico (evita errores de pandas)
+        df[cols] = df[cols].apply(pd.to_numeric, errors="coerce").fillna(0)
 
-        agrupado = df.groupby("localidad")[[
-            "movimiento", "lista2", "lista3", "blanco", "impugnados"
-        ]].sum().reset_index()
+        # Agrupar por localidad
+        agrupado = (
+            df.groupby("localidad")[cols]
+            .sum()
+            .reset_index()
+        )
 
+        # 🔥 CLAVE: ordenar por total de votos (de mayor a menor)
+        agrupado["total_votos"] = agrupado[cols].sum(axis=1)
+        agrupado = agrupado.sort_values("total_votos", ascending=False)
+
+        st.markdown("#### Totales por Localidad (de mayor a menor)")
         st.dataframe(agrupado, use_container_width=True)
 
-        # Calcular porcentajes por localidad (FORMA CORRECTA Y VECTORIAL)
-    columnas = ["movimiento", "lista2", "lista3", "blanco", "impugnados"]
+        # =========================
+        # PORCENTAJES POR LOCALIDAD
+        # =========================
+        df_porcentajes = agrupado.copy()
 
-    totales_localidad = agrupado[columnas].sum(axis=1)
+        df_porcentajes[cols] = (
+            df_porcentajes[cols]
+            .div(df_porcentajes["total_votos"], axis=0)
+            .multiply(100)
+            .round(2)
+        )
 
-    df_porcentajes = agrupado.copy()
+        df_porcentajes = df_porcentajes.rename(columns={
+            "movimiento": "% Movimiento",
+            "lista2": "% Lista 2",
+            "lista3": "% Lista 3",
+            "blanco": "% Blanco",
+            "impugnados": "% Impugnados",
+        })
 
-    df_porcentajes[columnas] = (
-    df_porcentajes[columnas]
-    .div(totales_localidad, axis=0)
-    .multiply(100)
-    .round(2)
-)
+        st.markdown("#### Porcentajes por Localidad (ordenado por peso electoral)")
+        st.dataframe(
+            df_porcentajes.drop(columns="total_votos"),
+            use_container_width=True
+        )
+st.metric("🗳️ Mesas cargadas", len(df))
+st.metric("📊 Total de votos cargados", int(df[cols_numericas].sum().sum()))
 
-    df_porcentajes = df_porcentajes.rename(columns={    
-    "movimiento": "% Movimiento",
-    "lista2": "% Lista 2",
-    "lista3": "% Lista 3",
-    "blanco": "% Blanco",
-    "impugnados": "% Impugnados",
-    })
 
-    st.markdown("#### Porcentajes por Localidad")
-    st.dataframe(df_porcentajes, use_container_width=True)
+
 
 
 

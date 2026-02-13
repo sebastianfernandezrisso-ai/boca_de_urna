@@ -246,3 +246,8 @@ st.metric("📊 Total de votos cargados", int(df[cols_numericas].sum().sum()))
 
 
 
+
+
+
+
+

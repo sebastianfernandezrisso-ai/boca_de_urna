@@ -4,6 +4,28 @@ from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError
 from db import engine, create_table
 
+import pandas as pd
+
+def colorear_filas(df):
+    def color_row(row):
+        colores = []
+        for col in df.columns:
+            if col.lower() == "movimiento":
+                colores.append("background-color: #b3e5fc")  # celeste
+            elif col.lower() == "lista1":
+                colores.append("background-color: #ffcdd2")  # rojo claro
+            elif col.lower() == "lista2":
+                colores.append("background-color: #bbdefb")  # azul claro
+            elif col.lower() == "blanco":
+                colores.append("background-color: #ffffff")  # blanco
+            elif col.lower() == "impugnados":
+                colores.append("background-color: #e0e0e0")  # gris
+            else:
+                colores.append("")
+        return colores
+
+    return df.style.apply(color_row, axis=1)
+
 st.set_page_config(layout="wide")
 
 create_table()
@@ -168,14 +190,15 @@ with tab2:
         st.markdown("### Totales Generales")
 
         totales = edited_df[cols_numericas].sum().sort_values(ascending=False)
-        st.dataframe(totales.to_frame("Total"))
+        st.dataframe(colorear_filas(totales.to_frame("Total")), use_container_width=True)
+
 
         total_votos = totales.sum()
 
         if total_votos > 0:
             porcentajes = (totales / total_votos * 100).round(2).sort_values(ascending=False)
             st.markdown("#### Porcentajes")
-            st.dataframe(porcentajes.to_frame("%"))
+            st.dataframe(colorear filas(porcentajes.to_frame("%")), use_container_width=True)
 
 
     
@@ -239,6 +262,7 @@ with tab3:
         )
 st.metric("🗳️ Mesas cargadas", len(df))
 st.metric("📊 Total de votos cargados", int(df[cols_numericas].sum().sum()))
+
 
 
 

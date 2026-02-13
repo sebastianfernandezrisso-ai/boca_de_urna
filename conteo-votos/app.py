@@ -95,7 +95,10 @@ with tab2:
 
     st.markdown("### Mesas Cargadas")
 
-    df = pd.read_sql("SELECT * FROM mesas ORDER BY created_at DESC", engine)
+    df = pd.read_sql(
+    "SELECT * FROM mesas ORDER BY CAST(mesa AS INTEGER) ASC",
+    engine
+    )
 
     if df.empty:
         st.info("Aún no hay datos cargados.")
@@ -239,6 +242,7 @@ with tab3:
         )
 st.metric("🗳️ Mesas cargadas", len(df))
 st.metric("📊 Total de votos cargados", int(df[cols_numericas].sum().sum()))
+
 
 
 

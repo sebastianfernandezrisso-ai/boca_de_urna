@@ -4,28 +4,6 @@ from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError
 from db import engine, create_table
 
-def colorear_filas(df):
-    def color_row(row):
-        nombre = str(row.name).lower()  # usa el índice (movimiento, lista2, etc)
-
-        if "movimiento" in nombre:
-            color = "#b3e5fc"  # celeste
-        elif "lista2" in nombre:
-            color = "#bbdefb"  # azul
-        elif "lista3" in nombre:
-            color = "#ffcdd2"  # rojo
-        elif "blanco" in nombre:
-            color = "#ffffff"  # blanco
-        elif "impugnados" in nombre:
-            color = "#e0e0e0"  # gris
-        else:
-            color = ""
-
-        return [f"background-color: {color}"] * len(row)
-
-    return df.style.apply(color_row, axis=1)
-
-
 st.set_page_config(layout="wide")
 
 create_table()
@@ -190,19 +168,14 @@ with tab2:
         st.markdown("### Totales Generales")
 
         totales = edited_df[cols_numericas].sum().sort_values(ascending=False)
-        st.table(colorear_filas(totales.to_frame("Total")))
-
-
+        st.dataframe(totales.to_frame("Total"))
 
         total_votos = totales.sum()
 
         if total_votos > 0:
             porcentajes = (totales / total_votos * 100).round(2).sort_values(ascending=False)
             st.markdown("#### Porcentajes")
-            st.table(colorear_filas(porcentajes.to_frame("%")))
-
-
-
+            st.dataframe(porcentajes.to_frame("%"))
 
 
     
@@ -237,8 +210,7 @@ with tab3:
         agrupado = agrupado.sort_values("total_votos", ascending=False)
 
         st.markdown("#### Totales por Localidad (de mayor a menor)")
-        st.table(colorear_filas(agrupado))
-
+        st.dataframe(agrupado, use_container_width=True)
 
         # =========================
         # PORCENTAJES POR LOCALIDAD
@@ -261,16 +233,12 @@ with tab3:
         })
 
         st.markdown("#### Porcentajes por Localidad (ordenado por peso electoral)")
-        st.table(
-        colorear_filas(df_porcentajes.drop(columns="total_votos"))
+        st.dataframe(
+            df_porcentajes.drop(columns="total_votos"),
+            use_container_width=True
         )
-
 st.metric("🗳️ Mesas cargadas", len(df))
 st.metric("📊 Total de votos cargados", int(df[cols_numericas].sum().sum()))
-
-
-
-
 
 
 

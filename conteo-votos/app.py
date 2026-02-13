@@ -12,9 +12,9 @@ def colorear_filas(df):
         for col in df.columns:
             if col.lower() == "movimiento":
                 colores.append("background-color: #b3e5fc")  # celeste
-            elif col.lower() == "lista1":
-                colores.append("background-color: #ffcdd2")  # rojo claro
             elif col.lower() == "lista2":
+                colores.append("background-color: #ffcdd2")  # rojo claro
+            elif col.lower() == "lista3":
                 colores.append("background-color: #bbdefb")  # azul claro
             elif col.lower() == "blanco":
                 colores.append("background-color: #ffffff")  # blanco
@@ -262,6 +262,7 @@ with tab3:
         )
 st.metric("🗳️ Mesas cargadas", len(df))
 st.metric("📊 Total de votos cargados", int(df[cols_numericas].sum().sum()))
+
 
 
 

@@ -201,6 +201,8 @@ with tab2:
             st.dataframe(colorear_filas(porcentajes.to_frame("%")), use_container_width=True)
 
 
+
+
     
 
 
@@ -262,6 +264,7 @@ with tab3:
         )
 st.metric("🗳️ Mesas cargadas", len(df))
 st.metric("📊 Total de votos cargados", int(df[cols_numericas].sum().sum()))
+
 
 
 

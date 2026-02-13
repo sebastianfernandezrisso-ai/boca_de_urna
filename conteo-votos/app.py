@@ -36,13 +36,13 @@ with tab1:
             col1, col2 = st.columns(2)
 
             with col1:
-                movimiento = st.number_input("Movimiento", min_value=0)
-                lista2 = st.number_input("Lista 2", min_value=0)
-                blanco = st.number_input("Blanco", min_value=0)
+                movimiento = st.number_input("Movimiento", min_value=0,value=None, placeholder="Ingrese votos")
+                lista2 = st.number_input("Lista 2", min_value=0,value=None, placeholder="Ingrese votos")
+                blanco = st.number_input("Blanco", min_value=0,value=None, placeholder="Ingrese votos")
 
             with col2:
-                lista3 = st.number_input("Lista 3", min_value=0)
-                impugnados = st.number_input("Impugnados", min_value=0)
+                lista3 = st.number_input("Lista 3", min_value=0,value=None, placeholder="Ingrese votos")
+                impugnados = st.number_input("Impugnados", min_value=0,value=None, placeholder="Ingrese votos")
 
             submit = st.form_submit_button("Guardar")
 
@@ -239,6 +239,7 @@ with tab3:
         )
 st.metric("🗳️ Mesas cargadas", len(df))
 st.metric("📊 Total de votos cargados", int(df[cols_numericas].sum().sum()))
+
 
 
 

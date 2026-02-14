@@ -118,7 +118,7 @@ with tab2:
             key="editor_mesas"
         )
 
-        if st.button("💾 Guardar cambios"):
+        if st.button("💾 Guardar cambios en la mesa"):
             with engine.begin() as conn:
                 for _, row in edited_df.iterrows():
                     conn.execute(text("""
@@ -239,6 +239,7 @@ with tab3:
 
 st.metric("🗳️ Mesas cargadas", len(df))
 st.metric("📊 Total de votos cargados", int(df[cols_numericas].sum().sum()))
+
 
 
 

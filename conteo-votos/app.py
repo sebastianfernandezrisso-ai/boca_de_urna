@@ -185,11 +185,11 @@ with tab2:
 
 
 # =====================================================
-# 🏙️ TAB 3 - TOTALES POR LOCALIDAD (ORDENADOS)
+# 🏙️ TAB 3 - RESULTADOS POR LOCALIDAD (SELECTOR)
 # =====================================================
 with tab3:
 
-    st.markdown("### Totales por Localidad")
+    st.markdown("### Resultados por Localidad")
 
     df = pd.read_sql("SELECT * FROM mesas", engine)
 
@@ -198,50 +198,51 @@ with tab3:
     if df.empty:
         st.info("Aún no hay datos cargados.")
     else:
-        # Convertir a numérico (evita errores de pandas)
+        # Convertir a numérico
         df[cols] = df[cols].apply(pd.to_numeric, errors="coerce").fillna(0)
 
-        # Agrupar por localidad
-        agrupado = (
-            df.groupby("localidad")[cols]
-            .sum()
-            .reset_index()
+        # Obtener lista de localidades únicas ordenadas
+        localidades = sorted(df["localidad"].dropna().unique())
+
+        # 🎯 SELECTOR DESPLEGABLE
+        localidad_seleccionada = st.selectbox(
+            "Seleccionar localidad",
+            localidades
         )
 
-        # 🔥 CLAVE: ordenar por total de votos (de mayor a menor)
-        agrupado["total_votos"] = agrupado[cols].sum(axis=1)
-        agrupado = agrupado.sort_values("total_votos", ascending=False)
+        # Filtrar solo la localidad elegida
+        df_localidad = df[df["localidad"] == localidad_seleccionada]
 
-        st.markdown("#### Totales por Localidad (de mayor a menor)")
-        st.dataframe(agrupado, use_container_width=True)
+        st.markdown(f"### 📍 Resultados en {localidad_seleccionada}")
 
-        # =========================
-        # PORCENTAJES POR LOCALIDAD
-        # =========================
-        df_porcentajes = agrupado.copy()
+        # Totales de la localidad
+        totales = df_localidad[cols].sum().sort_values(ascending=False)
 
-        df_porcentajes[cols] = (
-            df_porcentajes[cols]
-            .div(df_porcentajes["total_votos"], axis=0)
-            .multiply(100)
-            .round(2)
-        )
-
-        df_porcentajes = df_porcentajes.rename(columns={
-            "movimiento": "% Movimiento",
-            "lista2": "% Lista 2",
-            "lista3": "% Lista 3",
-            "blanco": "% Blanco",
-            "impugnados": "% Impugnados",
-        })
-
-        st.markdown("#### Porcentajes por Localidad (ordenado por peso electoral)")
+        st.markdown("#### Totales")
         st.dataframe(
-            df_porcentajes.drop(columns="total_votos"),
+            totales.to_frame("Votos"),
             use_container_width=True
         )
-st.metric("🗳️ Mesas cargadas", len(df))
-st.metric("📊 Total de votos cargados", int(df[cols_numericas].sum().sum()))
+
+        # Total de votos
+        total_votos = totales.sum()
+
+        # Porcentajes
+        if total_votos > 0:
+            porcentajes = (totales / total_votos * 100).round(2)
+
+            st.markdown("#### Porcentajes")
+            st.dataframe(
+                porcentajes.to_frame("%"),
+                use_container_width=True
+            )
+
+# Métricas rápidas (muy útiles en fiscalización)
+col1, col2 = st.columns(2)
+col1.metric("🗳️ Mesas en esta localidad", len(df_localidad))
+col2.metric("📊 Total votos localidad", int(total_votos))
+
+
 
 
 

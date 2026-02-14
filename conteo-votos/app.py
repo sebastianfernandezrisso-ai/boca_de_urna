@@ -237,10 +237,8 @@ with tab3:
                 use_container_width=True
             )
 
-# Métricas rápidas (muy útiles en fiscalización)
-col1, col2 = st.columns(2)
-col1.metric("🗳️ Mesas en esta localidad", len(df_localidad))
-col2.metric("📊 Total votos localidad", int(total_votos))
+st.metric("🗳️ Mesas cargadas", len(df))
+st.metric("📊 Total de votos cargados", int(df[cols_numericas].sum().sum()))
 
 
 

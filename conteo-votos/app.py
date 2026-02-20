@@ -236,9 +236,22 @@ with tab3:
                 porcentajes.to_frame("%"),
                 use_container_width=True
             )
+if 'df' in locals() and not df.empty:
+    cols_numericas = ["Movimiento", "Lista 1", "Lista 2", "Blanco", "Impugnado"]
+    cols_existentes = [c for c in cols_numericas if c in df.columns]
+
+    if cols_existentes:
+        total_votos = int(df[cols_existentes].sum().sum())
+    else:
+        total_votos = 0
+else:
+    total_votos = 0
+
 
 st.metric("🗳️ Mesas cargadas", len(df))
-st.metric("📊 Total de votos cargados", int(df[cols_numericas].sum().sum()))
+st.metric("📊 Total de votos cargados", total_votos)
+
+
 
 
 

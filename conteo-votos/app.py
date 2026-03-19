@@ -36,12 +36,12 @@ with tab1:
             col1, col2 = st.columns(2)
 
             with col1:
-                movimiento = st.number_input("Movimiento", min_value=0,value=None, placeholder="Ingrese votos")
-                lista2 = st.number_input("Lista 2", min_value=0,value=None, placeholder="Ingrese votos")
+                movimiento = st.number_input("Lista Movimiento", min_value=0,value=None, placeholder="Ingrese votos")
+                lista2 = st.number_input("Multicolor", min_value=0,value=None, placeholder="Ingrese votos")
                 blanco = st.number_input("Blanco", min_value=0,value=None, placeholder="Ingrese votos")
 
             with col2:
-                lista3 = st.number_input("Lista 3", min_value=0,value=None, placeholder="Ingrese votos")
+                
                 impugnados = st.number_input("Impugnados", min_value=0,value=None, placeholder="Ingrese votos")
 
             submit = st.form_submit_button("Guardar")
@@ -68,19 +68,18 @@ with tab1:
                         try:
                             with engine.begin() as conn:
                                 conn.execute(text("""
-                                    INSERT INTO mesas
-                                    (mesa, sede, localidad, movimiento, lista2, lista3, blanco, impugnados)
-                                    VALUES (:mesa, :sede, :localidad, :movimiento, :lista2, :lista3, :blanco, :impugnados)
-                                """), {
-                                    "mesa": mesa,
-                                    "sede": sede,
-                                    "localidad": localidad,
-                                    "movimiento": movimiento,
-                                    "lista2": lista2,
-                                    "lista3": lista3,
-                                    "blanco": blanco,
-                                    "impugnados": impugnados
-                                })
+    INSERT INTO mesas
+    (mesa, sede, localidad, "Lista movimiento", "Multicolor", blanco, impugnados)
+    VALUES (:mesa, :sede, :localidad, :movimiento, :lista2, :blanco, :impugnados)
+"""), {
+    "mesa": mesa,
+    "sede": sede,
+    "localidad": localidad,
+    "movimiento": movimiento,
+    "lista2": lista2,
+    "blanco": blanco,
+    "impugnados": impugnados
+})
 
                             st.success("Mesa cargada correctamente")
 
@@ -104,7 +103,7 @@ with tab2:
         st.info("Aún no hay datos cargados.")
     else:
 
-        cols_numericas = ["movimiento", "lista2", "lista3", "blanco", "impugnados"]
+        cols_numericas = ["Lista movimiento", "Multicolor", "blanco", "impugnados"]
         df[cols_numericas] = df[cols_numericas].apply(pd.to_numeric, errors="coerce").fillna(0)
 
         # =========================
@@ -118,25 +117,23 @@ with tab2:
             key="editor_mesas"
         )
 
-        if st.button("💾 Guardar cambios en la mesa"):
+        if st.button("💾 Guardar cambios"):
             with engine.begin() as conn:
                 for _, row in edited_df.iterrows():
                     conn.execute(text("""
-                        UPDATE mesas SET
-                            movimiento = :movimiento,
-                            lista2 = :lista2,
-                            lista3 = :lista3,
-                            blanco = :blanco,
-                            impugnados = :impugnados
-                        WHERE id = :id
-                    """), {
-                        "movimiento": int(row["movimiento"]),
-                        "lista2": int(row["lista2"]),
-                        "lista3": int(row["lista3"]),
-                        "blanco": int(row["blanco"]),
-                        "impugnados": int(row["impugnados"]),
-                        "id": int(row["id"])
-                    })
+    UPDATE mesas SET
+        "Lista movimiento" = :movimiento,
+        "Multicolor" = :lista2,
+        blanco = :blanco,
+        impugnados = :impugnados
+    WHERE id = :id
+"""), {
+    "movimiento": int(row["Lista movimiento"]),
+    "lista2": int(row["Multicolor"]),
+    "blanco": int(row["blanco"]),
+    "impugnados": int(row["impugnados"]),
+    "id": int(row["id"])
+})
 
             st.success("Cambios guardados correctamente")
             st.rerun()
@@ -193,7 +190,7 @@ with tab3:
 
     df = pd.read_sql("SELECT * FROM mesas", engine)
 
-    cols = ["movimiento", "lista2", "lista3", "blanco", "impugnados"]
+    cols = ["Lista movimiento", "Multicolor", "blanco", "impugnados"]
 
     if df.empty:
         st.info("Aún no hay datos cargados.")
@@ -237,7 +234,7 @@ with tab3:
                 use_container_width=True
             )
 # Columnas reales de tu base de datos
-cols_numericas = ["movimiento", "lista2", "lista3", "blanco", "impugnados"]
+cols_numericas = ["Lista movimiento", "Multicolor", "blanco", "impugnados"]
 
 if 'df' in locals() and not df.empty:
     # Asegurar que sean numéricas
@@ -251,11 +248,6 @@ else:
 
 st.metric("🗳️ Mesas cargadas", mesas_cargadas)
 st.metric("📊 Total de votos cargados", total_votos)
-
-
-
-
-
 
 
 

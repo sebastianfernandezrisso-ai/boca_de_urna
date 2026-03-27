@@ -8,15 +8,58 @@ st.set_page_config(layout="wide")
 
 create_table()
 
-st.title("🗳️ Fiscalización")
+st.title("🗳️ Escrutinio")
+
+
+# =========================
+# 📊 MÉTRICAS GENERALES (ARRIBA)
+# =========================
+
+TOTAL_MESAS = 151
+
+df = pd.read_sql("SELECT * FROM mesas", engine)
+
+cols_numericas = ["Lista movimiento", "Multicolor", "blanco", "impugnados"]
+
+if not df.empty:
+    df[cols_numericas] = df[cols_numericas].apply(pd.to_numeric, errors="coerce").fillna(0)
+    total_votos = int(df[cols_numericas].sum().sum())
+    mesas_cargadas = len(df)
+else:
+    total_votos = 0
+    mesas_cargadas = 0
+cols_listas = ["Lista movimiento", "Multicolor"]
+
+if not df.empty:
+    totales_listas = df[cols_listas].sum()
+    
+    lista_ganadora = totales_listas.idxmax()
+    votos_ganador = int(totales_listas.max())
+else:
+    lista_ganadora = "-"
+    votos_ganador = 0
+progreso = mesas_cargadas / TOTAL_MESAS if TOTAL_MESAS > 0 else 0
+porcentaje = progreso * 100
+
+col1, col2, col3, col4 = st.columns(4)
+
+col1.metric("🗳️ Mesas cargadas", mesas_cargadas)
+col2.metric("📊 Total de votos", total_votos)
+col3.metric("📈 % escrutado", f"{porcentaje:.2f}%")
+col4.metric("🏆 Va ganando", lista_ganadora, votos_ganador)
+
+st.progress(progreso)
+st.caption(f"{mesas_cargadas} de {TOTAL_MESAS} mesas escrutadas")
+
+
 
 # =============================
 # TABS
 # =============================
 tab1, tab2, tab3 = st.tabs([
-    "📝 Carga de Mesa",
-    "📊 Totales Generales",
-    "🏙️ Totales por Localidad"
+    "📝 CARGA DE VOTOS POR MESA",
+    "📊 TOTALES GENERALES",
+    "🏙️ TOTALES POR LOCALIDAD/MESA"
 ])
 
 # =====================================================
@@ -24,27 +67,39 @@ tab1, tab2, tab3 = st.tabs([
 # =====================================================
 with tab1:
 
-    st.markdown("### Carga de Mesa")
+    st.markdown("### CARGA DE MESA")
 
     col_c1, col_c2, col_c3 = st.columns([1,2,1])
-
+    if "limpiar_form" not in st.session_state:
+        st.session_state.limpiar_form = False
     with col_c2:
+        if st.session_state.limpiar_form:
+            st.session_state.mesa = ""
+            st.session_state.movimiento = None
+            st.session_state.lista2 = None
+            st.session_state.blanco = None
+            st.session_state.impugnados = None
+
+            st.session_state.limpiar_form = False
+            if "mensaje_ok" in st.session_state:
+                st.success(st.session_state.mensaje_ok)
+                del st.session_state.mensaje_ok
         with st.form("carga"):
 
-            mesa = st.text_input("Mesa")
+            mesa = st.text_input("Mesa",key="mesa")
 
             col1, col2 = st.columns(2)
 
             with col1:
-                movimiento = st.number_input("Lista Movimiento", min_value=0,value=None, placeholder="Ingrese votos")
-                lista2 = st.number_input("Multicolor", min_value=0,value=None, placeholder="Ingrese votos")
-                blanco = st.number_input("Blanco", min_value=0,value=None, placeholder="Ingrese votos")
+                movimiento = st.number_input("Lista Movimiento", min_value=0,value=None, placeholder="Ingrese votos",key="movimiento")
+                lista2 = st.number_input("Multicolor", min_value=0,value=None, placeholder="Ingrese votos",key="lista2")
+                blanco = st.number_input("Blanco", min_value=0,value=None, placeholder="Ingrese votos",key="blanco")
 
             with col2:
                 
-                impugnados = st.number_input("Impugnados", min_value=0,value=None, placeholder="Ingrese votos")
+                impugnados = st.number_input("Impugnados", min_value=0,value=None, placeholder="Ingrese votos",key="impugnados")
 
-            submit = st.form_submit_button("Guardar")
+            submit = st.form_submit_button("GUARDAR")
 
             if submit:
 
@@ -81,8 +136,11 @@ with tab1:
     "impugnados": impugnados
 })
 
-                            st.success("Mesa cargada correctamente")
-
+                            
+                            st.session_state.mensaje_ok = "Mesa cargada correctamente"
+                            st.session_state.limpiar_form = True
+                            st.rerun()
+                            
                         except IntegrityError:
                             st.warning("Esa mesa ya está cargada")
 
@@ -92,7 +150,7 @@ with tab1:
 # =====================================================
 with tab2:
 
-    st.markdown("### Mesas Cargadas")
+    st.markdown("### MESAS CARGADAS (La tabla se puede editar - actualiza los datos automáticamente)")
 
     df = pd.read_sql(
     "SELECT * FROM mesas ORDER BY CAST(mesa AS INTEGER) ASC",
@@ -143,7 +201,7 @@ with tab2:
         # =========================
         # ELIMINAR MESA
         # =========================
-        st.markdown("### Eliminar Mesa")
+        st.markdown("### ELIMINAR MESA (Se puede eliminar la mesa y volver a cargarla desde **Carga de mesa**)")
 
         mesa_a_eliminar = st.selectbox(
             "Seleccionar mesa",
@@ -165,7 +223,7 @@ with tab2:
         # =========================
         # TOTALES GENERALES
         # =========================
-        st.markdown("### Totales Generales")
+        st.markdown("### Totales Generales en cantidad de votos")
 
         totales = edited_df[cols_numericas].sum().sort_values(ascending=False)
         st.dataframe(totales.to_frame("Total"))
@@ -174,7 +232,7 @@ with tab2:
 
         if total_votos > 0:
             porcentajes = (totales / total_votos * 100).round(2).sort_values(ascending=False)
-            st.markdown("#### Porcentajes")
+            st.markdown("#### Porcentajes totales")
             st.dataframe(porcentajes.to_frame("%"))
 
 
@@ -186,7 +244,7 @@ with tab2:
 # =====================================================
 with tab3:
 
-    st.markdown("### Resultados por Localidad")
+    st.markdown("### RESULTADOS POR LOCALIDAD/MESAS")
 
     df = pd.read_sql("SELECT * FROM mesas", engine)
 
@@ -242,12 +300,10 @@ if 'df' in locals() and not df.empty:
     
     total_votos = int(df[cols_numericas].sum().sum())
     mesas_cargadas = len(df)
+    porcentaje = (mesas_cargadas / TOTAL_MESAS) * 100 if TOTAL_MESAS > 0 else 0
 else:
     total_votos = 0
     mesas_cargadas = 0
-
-st.metric("🗳️ Mesas cargadas", mesas_cargadas)
-st.metric("📊 Total de votos cargados", total_votos)
 
 
 

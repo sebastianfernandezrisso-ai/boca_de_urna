@@ -218,7 +218,8 @@ with tab1:
             st.session_state.lista2 = None
             st.session_state.blanco = None
             st.session_state.impugnados = None
-
+            st.session_state.recurridos = None
+            st.session_state.nulos = None
             st.session_state.limpiar_form = False
             if "mensaje_ok" in st.session_state:
                 st.success(st.session_state.mensaje_ok)
@@ -261,6 +262,21 @@ with tab1:
                     placeholder="Ingrese votos",
                     key="impugnados",
                 )
+                recurridos = st.number_input(
+                    "Recurridos",
+                     min_value=0,
+                     value=None,
+                    placeholder="Ingrese votos",
+                    key="recurridos",
+                )
+
+                nulos = st.number_input(
+                    "Nulos",
+                    min_value=0,
+                    value=None,
+                    placeholder="Ingrese votos",
+                    key="nulos",
+                )
 
             submit = st.form_submit_button("GUARDAR")
 
@@ -291,8 +307,8 @@ with tab1:
                                     text(
                                         """
     INSERT INTO mesas
-    (mesa, sede, localidad, "Lista movimiento", "Multicolor", blanco, impugnados)
-    VALUES (:mesa, :sede, :localidad, :movimiento, :lista2, :blanco, :impugnados)
+(mesa, sede, localidad, "Lista movimiento", "Multicolor", blanco, impugnados, recurridos, nulos)
+VALUES (:mesa, :sede, :localidad, :movimiento, :lista2, :blanco, :impugnados, :recurridos, :nulos)
 """
                                     ),
                                     {
@@ -303,6 +319,8 @@ with tab1:
                                         "lista2": lista2,
                                         "blanco": blanco,
                                         "impugnados": impugnados,
+                                        "recurridos": recurridos,
+                                        "nulos": nulos,
                                     },
                                 )
 
@@ -329,7 +347,7 @@ with tab2:
     if df.empty:
         st.info("Aún no hay datos cargados.")
     else:
-        cols_numericas = ["Lista movimiento", "Multicolor", "blanco", "impugnados"]
+        cols_numericas = ["Lista movimiento", "Multicolor", "blanco", "impugnados","recurridos","nulos"]
 
         df[cols_numericas] = df[cols_numericas].apply(pd.to_numeric, errors="coerce").fillna(0)
 
@@ -364,6 +382,8 @@ with tab2:
                             "Multicolor" = :lista2,
                             blanco = :blanco,
                             impugnados = :impugnados,
+                            recurridos = :recurridos,
+                            nulos = :nulos,
                             verificado = :verificado
                         WHERE id = :id
                     """), {
@@ -371,6 +391,8 @@ with tab2:
                         "lista2": int(row["Multicolor"]),
                         "blanco": int(row["blanco"]),
                         "impugnados": int(row["impugnados"]),
+                        "recurridos": int(row["recurridos"]),
+                        "nulos": int(row["nulos"]),
                         "verificado": bool(row["verificado"]),
                         "id": int(row["id"])
                     })
@@ -561,7 +583,7 @@ with tab3:
 
     df = pd.read_sql("SELECT * FROM mesas", engine)
 
-    cols = ["Lista movimiento", "Multicolor", "blanco", "impugnados"]
+    cols = ["Lista movimiento", "Multicolor", "blanco", "impugnados","recurridos","nulos"]
 
     if df.empty:
         st.info("Aún no hay datos cargados.")
@@ -596,7 +618,7 @@ with tab3:
             st.markdown("#### Porcentajes")
             st.dataframe(porcentajes.to_frame("%"), use_container_width=True)
 # Columnas reales de tu base de datos
-cols_numericas = ["Lista movimiento", "Multicolor", "blanco", "impugnados"]
+cols_numericas = ["Lista movimiento", "Multicolor", "blanco", "impugnados","recurridos","nulos"]
 
 if "df" in locals() and not df.empty:
     # Asegurar que sean numéricas

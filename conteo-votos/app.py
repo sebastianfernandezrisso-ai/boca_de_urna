@@ -4,7 +4,22 @@ from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError
 from db import engine, create_table
 import hashlib
+# =========================
+# CACHE
+# =========================
+@st.cache_data(ttl=5)
+def get_mesas():
+    return pd.read_sql("SELECT * FROM mesas", engine)
 
+@st.cache_data(ttl=60)
+def get_padron_mesa(mesa):
+    query = text("SELECT sede, localidad FROM mesas_padron WHERE mesa = :mesa")
+    return pd.read_sql(query, engine, params={"mesa": mesa})
+
+def mesa_existe(mesa):
+    query = text("SELECT 1 FROM mesas WHERE mesa = :mesa LIMIT 1")
+    result = pd.read_sql(query, engine, params={"mesa": mesa})
+    return not result.empty
 # =========================
 # USUARIOS
 # =========================

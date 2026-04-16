@@ -113,10 +113,17 @@ if st.session_state.rol == "admin":
         totales_listas = df[cols_listas].sum()
 
         lista_ganadora = totales_listas.idxmax()
-        votos_ganador = int(totales_listas.max())
+        lista_perdedora = totales_listas.idxmin()
+
+        votos_ganador = int(totales_listas[lista_ganadora])
+        votos_perdedor = int(totales_listas[lista_perdedora])
+
+        diferencia = votos_ganador - votos_perdedor
+
+        votos_ganador = f"+{diferencia}"
     else:
         lista_ganadora = "-"
-        votos_ganador = 0
+        votos_ganador = "0"
     progreso = mesas_cargadas / TOTAL_MESAS if TOTAL_MESAS > 0 else 0
     porcentaje = progreso * 100
 

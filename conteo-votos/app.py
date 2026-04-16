@@ -265,7 +265,7 @@ with tab2:
         st.warning("⛔ Solo el administrador puede acceder a esta sección")
         st.stop()
     st.markdown(
-        "### MESAS CARGADAS (La tabla se pueden editar los votos - Dar a botón guardar cambios)"
+        "### MESAS CARGADAS (En la tabla se pueden editar los votos - Siempre dar a botón guardar cambios cuando se edita y se coloca el verificado)"
     )
 
     df = pd.read_sql("SELECT * FROM mesas ORDER BY CAST(mesa AS INTEGER) ASC", engine)

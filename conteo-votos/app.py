@@ -471,7 +471,85 @@ with tab2:
                 use_container_width=True
             )
 
+# =========================
+# 🔥 RESET TOTAL (SOLO SUPERADMIN)
+# =========================
+if st.session_state.rol == "superadmin":
 
+    st.divider()
+    st.markdown("### ⚠️ RESET TOTAL DEL SISTEMA")
+
+    st.warning("Esta acción borra TODAS las mesas cargadas")
+
+    confirmar = st.checkbox("Confirmo que quiero borrar todos los datos")
+    texto = st.text_input("Escribí RESET para confirmar")
+
+    # Inicializar sesión
+    if "backup_csv" not in st.session_state:
+        st.session_state.backup_csv = None
+
+    if "backup_excel" not in st.session_state:
+        st.session_state.backup_excel = None
+
+    timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M")
+
+    if st.button("🧨 Generar Backup y Resetear", use_container_width=True):
+
+        if not confirmar or texto != "RESET":
+            st.error("Debes confirmar y escribir RESET correctamente")
+        else:
+            try:
+                df_backup = get_mesas()
+
+                if not df_backup.empty:
+
+                    # ===== CSV =====
+                    st.session_state.backup_csv = df_backup.to_csv(index=False).encode("utf-8")
+
+                    # ===== EXCEL =====
+                    excel_data = generar_excel({
+                        "Mesas": df_backup
+                    })
+
+                    st.session_state.backup_excel = excel_data
+
+                # ===== RESET REAL =====
+                with engine.begin() as conn:
+                    conn.execute(text("TRUNCATE TABLE mesas RESTART IDENTITY"))
+
+                # limpiar cache
+                get_mesas.clear()
+
+                st.success("✅ Base reiniciada correctamente")
+                st.info("Ahora podés descargar el backup 👇")
+
+                st.rerun()
+
+            except Exception as e:
+                st.error(f"Error: {e}")
+
+    # =========================
+    # ⬇️ DESCARGAS
+    # =========================
+    if st.session_state.get("backup_csv"):
+
+        st.download_button(
+            "⬇️ Descargar Backup CSV",
+            st.session_state.backup_csv,
+            f"backup_{timestamp}.csv",
+            "text/csv",
+            use_container_width=True
+        )
+
+    if st.session_state.get("backup_excel"):
+
+        st.download_button(
+            "⬇️ Descargar Backup Excel",
+            st.session_state.backup_excel,
+            f"backup_{timestamp}.xlsx",
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            use_container_width=True
+        )
 # =====================================================
 # 🏙️ TAB 3 - RESULTADOS POR LOCALIDAD (SELECTOR)
 # =====================================================

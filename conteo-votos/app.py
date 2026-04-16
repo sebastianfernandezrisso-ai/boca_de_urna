@@ -4,6 +4,8 @@ from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError
 from db import engine, create_table
 import hashlib
+import io
+from datetime import datetime
 # =========================
 # CACHE
 # =========================
@@ -20,6 +22,50 @@ def mesa_existe(mesa):
     query = text("SELECT 1 FROM mesas WHERE mesa = :mesa LIMIT 1")
     result = pd.read_sql(query, engine, params={"mesa": mesa})
     return not result.empty
+def generar_excel(df_dict):
+    import io
+    from openpyxl.chart import PieChart, Reference
+    from openpyxl import Workbook
+
+    output = io.BytesIO()
+
+    with pd.ExcelWriter(output, engine="openpyxl") as writer:
+
+        # =========================
+        # GUARDAR DATAFRAMES
+        # =========================
+        for nombre_hoja, df in df_dict.items():
+            df.to_excel(writer, index=False, sheet_name=nombre_hoja[:31])
+
+        wb = writer.book
+
+        # =========================
+        # CREAR HOJA DE GRAFICO
+        # =========================
+        ws_chart = wb.create_sheet(title="Grafico")
+
+        totales_df = df_dict.get("Totales")
+
+        if totales_df is not None and not totales_df.empty:
+
+            # Escribir datos para gráfico
+            ws_chart.append(["Lista", "Votos"])
+
+            for _, row in totales_df.iterrows():
+                ws_chart.append([row["Lista"], row["Votos"]])
+
+            # Crear gráfico de torta
+            pie = PieChart()
+            labels = Reference(ws_chart, min_col=1, min_row=2, max_row=len(totales_df)+1)
+            data = Reference(ws_chart, min_col=2, min_row=1, max_row=len(totales_df)+1)
+
+            pie.add_data(data, titles_from_data=True)
+            pie.set_categories(labels)
+            pie.title = "Distribución de Votos"
+
+            ws_chart.add_chart(pie, "D2")
+
+    return output.getvalue()
 # =========================
 # USUARIOS
 # =========================
@@ -31,6 +77,10 @@ USUARIOS = {
     "usuario": {
         "password": hashlib.sha256("carga123".encode()).hexdigest(),
         "rol": "user",
+    },
+    "superadmin": {
+        "password": hashlib.sha256("super123".encode()).hexdigest(),
+        "rol": "superadmin",
     },
 }
 
@@ -268,79 +318,71 @@ with tab1:
 # 📊 TAB 2 - MESAS + TOTALES GENERALES
 # =====================================================
 with tab2:
-    if st.session_state.rol != "admin":
+    if st.session_state.rol not in ["admin", "superadmin"]:
         st.warning("⛔ Solo el administrador puede acceder a esta sección")
         st.stop()
-    st.markdown(
-        "### MESAS CARGADAS (En la tabla se pueden editar los votos - Siempre dar a botón guardar cambios cuando se edita y se coloca el verificado)"
-    )
+
+    st.markdown("### MESAS CARGADAS")
 
     df = pd.read_sql("SELECT * FROM mesas ORDER BY CAST(mesa AS INTEGER) ASC", engine)
 
     if df.empty:
         st.info("Aún no hay datos cargados.")
     else:
-
         cols_numericas = ["Lista movimiento", "Multicolor", "blanco", "impugnados"]
-        df[cols_numericas] = (
-            df[cols_numericas].apply(pd.to_numeric, errors="coerce").fillna(0)
+
+        df[cols_numericas] = df[cols_numericas].apply(pd.to_numeric, errors="coerce").fillna(0)
+
+        # =========================
+        # 📝 EDITOR
+        # =========================
+        edited_df = st.data_editor(
+            df,
+            use_container_width=True,
+            num_rows="fixed",
+            disabled=["id", "mesa", "sede", "localidad", "created_at"],
+            column_config={
+                "verificado": st.column_config.CheckboxColumn("✔ Verificado")
+            },
+            key="editor_mesas",
         )
 
-        edited_df = st.data_editor(
-    df,
-    use_container_width=True,
-    num_rows="fixed",
-    disabled=["id", "mesa", "sede", "localidad", "created_at"],
-    column_config={
-        "verificado": st.column_config.CheckboxColumn(
-            "✔ Verificado",
-            help="Marcar cuando la mesa fue controlada",
-            default=False
-        )
-    },
-    key="editor_mesas",
-)
-        st.markdown("### Estado de verificación")
-        st.markdown("""
-🟢 **Verde**: Mesa verificada  
-🔴 **Rojo**: Mesa no verificada
-""")
         st.dataframe(
-        edited_df.style.apply(colorear_filas, axis=1),
-        use_container_width=True
-)
+            edited_df.style.apply(colorear_filas, axis=1),
+            use_container_width=True
+        )
+
+        # =========================
+        # 💾 GUARDAR
+        # =========================
         if st.button("💾 Guardar cambios"):
             with engine.begin() as conn:
                 for _, row in edited_df.iterrows():
                     conn.execute(text("""
-UPDATE mesas SET
-    "Lista movimiento" = :movimiento,
-    "Multicolor" = :lista2,
-    blanco = :blanco,
-    impugnados = :impugnados,
-    verificado = :verificado
-WHERE id = :id
-"""), {
-    "movimiento": int(row["Lista movimiento"]),
-    "lista2": int(row["Multicolor"]),
-    "blanco": int(row["blanco"]),
-    "impugnados": int(row["impugnados"]),
-    "verificado": bool(row["verificado"]),
-    "id": int(row["id"])
-})
+                        UPDATE mesas SET
+                            "Lista movimiento" = :movimiento,
+                            "Multicolor" = :lista2,
+                            blanco = :blanco,
+                            impugnados = :impugnados,
+                            verificado = :verificado
+                        WHERE id = :id
+                    """), {
+                        "movimiento": int(row["Lista movimiento"]),
+                        "lista2": int(row["Multicolor"]),
+                        "blanco": int(row["blanco"]),
+                        "impugnados": int(row["impugnados"]),
+                        "verificado": bool(row["verificado"]),
+                        "id": int(row["id"])
+                    })
 
-            st.success("Cambios guardados correctamente")
+            st.success("Cambios guardados")
             st.rerun()
 
         st.divider()
 
         # =========================
-        # ELIMINAR MESA
+        # 🗑️ ELIMINAR
         # =========================
-        st.markdown(
-            "### ELIMINAR MESA (Se puede eliminar la mesa y volver a cargarla desde **Carga de mesa**)"
-        )
-
         mesa_a_eliminar = st.selectbox("Seleccionar mesa", df["mesa"].unique())
 
         if st.button("🗑️ Eliminar Mesa"):
@@ -349,16 +391,15 @@ WHERE id = :id
                     text("DELETE FROM mesas WHERE mesa = :mesa"),
                     {"mesa": mesa_a_eliminar},
                 )
-
-            st.success("Mesa eliminada correctamente")
+            st.success("Mesa eliminada")
             st.rerun()
 
         st.divider()
 
         # =========================
-        # TOTALES GENERALES
+        # 📊 TOTALES
         # =========================
-        st.markdown("### Totales Generales en cantidad de votos")
+        st.markdown("### Totales Generales")
 
         totales = edited_df[cols_numericas].sum().sort_values(ascending=False)
         st.dataframe(totales.to_frame("Total"))
@@ -366,11 +407,69 @@ WHERE id = :id
         total_votos = totales.sum()
 
         if total_votos > 0:
-            porcentajes = (
-                (totales / total_votos * 100).round(2).sort_values(ascending=False)
-            )
-            st.markdown("#### Porcentajes totales")
+            porcentajes = (totales / total_votos * 100).round(2)
             st.dataframe(porcentajes.to_frame("%"))
+
+        st.divider()
+
+        # =========================
+        # 📥 EXPORTAR (LO QUE PEDISTE)
+        # =========================
+        if st.session_state.rol in ["admin", "superadmin"]:
+
+            st.markdown("### ⬇️ Exportar datos")
+
+            totales_df = totales.to_frame("Total").reset_index()
+            totales_df.columns = ["Lista", "Votos"]
+
+            if total_votos > 0:
+                porcentajes_df = porcentajes.to_frame("%").reset_index()
+                porcentajes_df.columns = ["Lista", "Porcentaje"]
+            else:
+                porcentajes_df = pd.DataFrame()
+            # =========================
+            # MÉTRICAS
+            # =========================
+            metricas_df = pd.DataFrame({
+                "Indicador": [
+                "Total votos",
+                "Lista ganadora",
+                "Diferencia"
+                ],
+                "Valor": [
+            total_votos,
+            totales.idxmax(),
+            int(totales.max() - totales.min())
+    ]
+})
+            excel_data = generar_excel({
+            "Mesas": edited_df,
+            "Totales": totales_df,
+            "Porcentajes": porcentajes_df,
+            "Metricas": metricas_df
+})
+            # =========================
+            # MÉTRICAS
+            # =========================
+            metricas_df = pd.DataFrame({
+                "Indicador": [
+                "Total votos",
+                "Lista ganadora",
+                "Diferencia"
+                ],
+                "Valor": [
+            total_votos,
+            totales.idxmax(),
+            int(totales.max() - totales.min())
+    ]
+})
+            st.download_button(
+                "📥 Descargar Excel Completo",
+                data=excel_data,
+                file_name="resultados_generales.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                use_container_width=True
+            )
 
 
 # =====================================================
@@ -433,3 +532,31 @@ if "df" in locals() and not df.empty:
 else:
     total_votos = 0
     mesas_cargadas = 0
+if st.session_state.rol in ["admin", "superadmin"] and not df.empty:
+
+    st.divider()
+    st.markdown("### ⬇️ Exportar resultados de localidad")
+
+    # Preparar datos
+    totales_df = totales.to_frame("Votos").reset_index()
+    totales_df.columns = ["Lista", "Votos"]
+
+    if total_votos > 0:
+        porcentajes_df = porcentajes.to_frame("%").reset_index()
+        porcentajes_df.columns = ["Lista", "Porcentaje"]
+    else:
+        porcentajes_df = pd.DataFrame()
+
+    excel_data = generar_excel({
+        f"Mesas_{localidad_seleccionada}": df_localidad,
+        "Totales": totales_df,
+        "Porcentajes": porcentajes_df
+    })
+
+    st.download_button(
+        "📥 Descargar Excel Localidad",
+        data=excel_data,
+        file_name=f"resultados_{localidad_seleccionada}.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        use_container_width=True
+    )

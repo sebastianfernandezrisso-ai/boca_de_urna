@@ -6,7 +6,8 @@ from db import engine, create_table
 import hashlib
 import io
 from datetime import datetime
-
+import PyPDF2
+import re
 TOTAL_MESAS = 151
 PADRON_TOTAL = 9814
 
@@ -16,14 +17,19 @@ PADRON_TOTAL = 9814
 st.set_page_config(layout="wide")
 create_table()
 
-st.markdown("""
+st.markdown(
+    """
 <style>
     /* Oculta el menú automático de páginas */
     [data-testid="stSidebarNav"] {
         display: none;
     }
 </style>
-""", unsafe_allow_html=True)
+""",
+    unsafe_allow_html=True,
+)
+
+
 # =========================
 # CACHE
 # =========================
@@ -44,6 +50,54 @@ def colorear_filas(row):
     else:
         return ["background-color: #f7c5c5; color: black"] * len(row)
 
+
+import PyPDF2
+import re
+import os
+
+@st.cache_data
+def procesar_padron_estatico(ruta_pdf):
+    """
+    Lee el archivo PDF local y devuelve el diccionario de totales por mesa.
+    """
+    if not os.path.exists(ruta_pdf):
+        return {}
+    
+    try:
+        with open(ruta_pdf, "rb") as f:
+            pdf_reader = PyPDF2.PdfReader(f)
+            texto_completo = ""
+            for page in pdf_reader.pages:
+                content = page.extract_text()
+                if content:
+                    texto_completo += content
+
+        dict_totales = {}
+        # Separamos por el marcador "MESA:" que aparece en tu PDF
+        bloques = re.split(r'MESA:', texto_completo)
+
+        for bloque in bloques:
+            lineas = bloque.split('\n')
+            if not lineas: continue
+            
+            # Extraer el número de mesa (ej: "151" de "151: ESCUELA...")
+            match_mesa = re.search(r'^\s*(\d+)', lineas[0])
+            if match_mesa:
+                num_mesa = match_mesa.group(1)
+                # Contamos los electores buscando la palabra "DNI" en este bloque
+                electores = bloque.count("DNI")
+                if electores > 0:
+                    dict_totales[str(num_mesa)] = electores
+        return dict_totales
+    except Exception as e:
+        print(f"Error procesando padrón: {e}")
+        return {}
+
+# --- CARGA INICIAL (Fuera de los tabs, al principio del script) ---
+# Cambia "padron-con-corte-por-mesa.pdf" por el nombre exacto de tu archivo
+RUTA_PDF = "padron-con-corte-por-mesa.pdf"
+if "dict_padron" not in st.session_state:
+    st.session_state["dict_padron"] = procesar_padron_estatico(RUTA_PDF)
 
 # =========================
 # EXCEL CON GRAFICOS
@@ -103,24 +157,31 @@ def generar_excel(df_dict):
 # =========================
 # Generamos los 151 usuarios de fiscales dinámicamente
 USUARIOS = {
-    "admin": {"password": hashlib.sha256("admin1986".encode()).hexdigest(), "rol": "admin"},
-    "superadmin": {"password": hashlib.sha256("super123".encode()).hexdigest(), "rol": "superadmin"},
+    "admin": {
+        "password": hashlib.sha256("admin1986".encode()).hexdigest(),
+        "rol": "admin",
+    },
+    "superadmin": {
+        "password": hashlib.sha256("super123".encode()).hexdigest(),
+        "rol": "superadmin",
+    },
 }
 
 for i in range(1, 152):
     user_id = f"fiscal{i}"
-    # Password por defecto: "mesa" + número (ej: mesa1, mesa2...) 
+    # Password por defecto: "mesa" + número (ej: mesa1, mesa2...)
     # ¡Cámbialo por algo más seguro si es necesario!
-    pass_text = f"mesa{i}" 
+    pass_text = f"mesa{i}"
     USUARIOS[user_id] = {
         "password": hashlib.sha256(pass_text.encode()).hexdigest(),
         "rol": "fiscal",
-        "mesa_asignada": str(i)
+        "mesa_asignada": str(i),
     }
+
 
 def login():
     st.title("🔐 Login")
-    
+
     # Capturamos los datos de los inputs
     usuario = st.text_input("Usuario")
     password = st.text_input("Contraseña", type="password")
@@ -133,27 +194,35 @@ def login():
                 st.session_state.logged = True
                 st.session_state.usuario = usuario
                 st.session_state.rol = USUARIOS[usuario]["rol"]
-                
+
                 # Guardamos la mesa asignada (será un número para fiscales o None para admin)
                 st.session_state.mesa_asignada = USUARIOS[usuario].get("mesa_asignada")
-                
+
                 st.rerun()
             else:
                 st.error("Contraseña incorrecta")
         else:
             st.error("Usuario no existe")
     else:
-            st.error("Usuario no existe")
-if st.session_state.get("logged", False) and st.session_state.rol in ["admin", "superadmin"]:
+        st.error("Usuario no existe")
+
+
+if st.session_state.get("logged", False) and st.session_state.rol in [
+    "admin",
+    "superadmin",
+]:
 
     # Mostrar sidebar nuevamente
-    st.markdown("""
+    st.markdown(
+        """
     <style>
         section[data-testid="stSidebar"] {
             display: block;
         }
     </style>
-    """, unsafe_allow_html=True)
+    """,
+        unsafe_allow_html=True,
+    )
 
     with st.sidebar:
         st.markdown("## ⚙️ Panel de administración")
@@ -239,11 +308,12 @@ if st.session_state.rol in ["admin", "superadmin"]:
 # =========================
 # TABS
 # =========================
-tab1, tab2, tab3 = st.tabs(
+tab1, tab2, tab3, tab4 = st.tabs(
     [
         "📝 CARGA",
         "📊 GENERALES",
         "🏙️ LOCALIDAD",
+        "PARTICIPACION",
     ]
 )
 
@@ -254,12 +324,19 @@ with tab1:
         st.session_state.limpiar_form = False
 
     if st.session_state.limpiar_form:
-        # Limpiamos los campos, pero NO tocamos 'mesa' en el session_state 
+        # Limpiamos los campos, pero NO tocamos 'mesa' en el session_state
         # si es fiscal para que no se borre su asignación
-        campos_a_limpiar = ["movimiento", "lista2", "blanco", "impugnados", "recurridos", "nulos"]
+        campos_a_limpiar = [
+            "movimiento",
+            "lista2",
+            "blanco",
+            "impugnados",
+            "recurridos",
+            "nulos",
+        ]
         if st.session_state.rol != "fiscal":
-             campos_a_limpiar.append("mesa")
-             
+            campos_a_limpiar.append("mesa")
+
         for k in campos_a_limpiar:
             st.session_state[k] = 0
         st.session_state.limpiar_form = False
@@ -336,33 +413,41 @@ with tab1:
                 else:
                     sede = result.iloc[0]["sede"]
                     localidad = result.iloc[0]["localidad"]
-                    
+
                     # Identificamos quién carga para la auditoría
                     fiscal_user = st.session_state.usuario
 
                     try:
                         with engine.begin() as conn:
                             conn.execute(
-                                text(
-                                    """
-                                    INSERT INTO mesas 
-                                    (mesa, sede, localidad, "Lista movimiento", "Multicolor", blanco, impugnados, recurridos, nulos, fiscal_user)
-                                    VALUES (:mesa, :sede, :localidad, :movimiento, :lista2, :blanco, :impugnados, :recurridos, :nulos, :fiscal_user)
-                                    """
-                                ),
-                                {
-                                    "mesa": mesa,
-                                    "sede": sede,
-                                    "localidad": localidad,
-                                    "movimiento": movimiento if movimiento is not None else 0,
-                                    "lista2": lista2 if lista2 is not None else 0,
-                                    "blanco": blanco if blanco is not None else 0,
-                                    "impugnados": impugnados if impugnados is not None else 0,
-                                    "recurridos": recurridos if recurridos is not None else 0,
-                                    "nulos": nulos if nulos is not None else 0,
-                                    "fiscal_user": fiscal_user
-                                }
-                            )
+        text("""
+            INSERT INTO mesas 
+            (mesa, sede, localidad, "Lista movimiento", "Multicolor", blanco, impugnados, recurridos, nulos, fiscal_user)
+            VALUES 
+            (:mesa, :sede, :localidad, :movimiento, :lista2, :blanco, :impugnados, :recurridos, :nulos, :fiscal_user)
+            ON CONFLICT (mesa)
+            DO UPDATE SET
+                "Lista movimiento" = EXCLUDED."Lista movimiento",
+                "Multicolor" = EXCLUDED."Multicolor",
+                blanco = EXCLUDED.blanco,
+                impugnados = EXCLUDED.impugnados,
+                recurridos = EXCLUDED.recurridos,
+                nulos = EXCLUDED.nulos,
+                fiscal_user = EXCLUDED.fiscal_user;
+        """),
+        {
+            "mesa": mesa,
+            "sede": sede,
+            "localidad": localidad,
+            "movimiento": movimiento or 0,
+            "lista2": lista2 or 0,
+            "blanco": blanco or 0,
+            "impugnados": impugnados or 0,
+            "recurridos": recurridos or 0,
+            "nulos": nulos or 0,
+            "fiscal_user": fiscal_user,
+        },
+    )
 
                         st.success(f"✅ Mesa {mesa} guardada exitosamente")
                         st.session_state.limpiar_form = True
@@ -374,31 +459,30 @@ with tab1:
 
 # ================= TAB 2 =================
 with tab2:
-
     if st.session_state.rol not in ["admin", "superadmin"]:
-        st.stop()
-
-    df = get_mesas()
-
-    st.markdown(
-        "🟢 **Mesa Verificada** &nbsp;&nbsp;&nbsp; 🔴 **Mesa No verificada**"
-    )
-    st.markdown("**La verificación se puede guardar desde tabla principal sin ir a editar datos. Esto es por si se chequea que los datos son correctos**")
-    if df.empty:
-        st.info("Sin datos")
-
+        st.warning("🔒 Acceso restringido a administradores. Por favor, utilice las pestañas de Carga o Participación.")
     else:
+        df = get_mesas()
 
-        cols = [
-            "Lista movimiento",
-            "Multicolor",
-            "blanco",
-            "impugnados",
-            "recurridos",
-            "nulos",
-        ]
+        st.markdown("🟢 **Mesa Verificada** &nbsp;&nbsp;&nbsp; 🔴 **Mesa No verificada**")
+        st.markdown(
+            "**La verificación se puede guardar desde tabla principal sin ir a editar datos. Esto es por si se chequea que los datos son correctos**"
+        )
+        
+        if df.empty:
+            st.info("Sin datos cargados aún.")
+        else:
+            cols = [
+                "Lista movimiento",
+                "Multicolor",
+                "blanco",
+                "impugnados",
+                "recurridos",
+                "nulos",
+            ]
 
-        df[cols] = df[cols].apply(pd.to_numeric, errors="coerce").fillna(0).astype(int)
+            # Normalizar datos numéricos
+            df[cols] = df[cols].apply(pd.to_numeric, errors="coerce").fillna(0).astype(int)
 
         # =========================
         # DATA EDITOR (CHECKBOX)
@@ -424,20 +508,18 @@ with tab2:
             },
             key="editor_verificacion",
         )
-     # =========================
+        # =========================
         # GUARDAR
         # =========================
         if st.button("💾 Guardar verificación"):
             with engine.begin() as conn:
                 for _, row in edited_df.iterrows():
                     conn.execute(
-                        text(
-                            """
+                        text("""
                             UPDATE mesas
                             SET verificado = :verificado
                             WHERE id = :id
-                        """
-                        ),
+                        """),
                         {
                             "verificado": bool(row["verificado"]),
                             "id": int(row["id"]),
@@ -453,10 +535,6 @@ with tab2:
             edited_df.style.apply(colorear_filas, axis=1),
             use_container_width=True,
         )
-
-       
-
-        
 
         # =========================
         # NAVEGACIÓN
@@ -484,11 +562,7 @@ with tab2:
             }
         )
 
-        st.download_button(
-            "Descargar Excel con totales",
-            excel_data,
-            "resultados.xlsx"
-        )
+        st.download_button("Descargar Excel con totales", excel_data, "resultados.xlsx")
 # =========================
 # 🔥 RESET TOTAL (SOLO SUPERADMIN)
 # =========================
@@ -572,7 +646,7 @@ if st.session_state.rol == "superadmin":
 with tab3:
     if st.session_state.rol != "admin":
         st.warning("⛔ Solo el administrador puede ver resultados")
-        st.stop()
+        #st.stop()
 
     st.markdown("### RESULTADOS POR LOCALIDAD/MESAS")
 
@@ -649,7 +723,131 @@ with tab3:
                     "Porcentajes": porcentajes_df,
                 }
             )
+# ================= TAB 4 =================
+with tab4:
+    st.header("📈 Participación Provisoria Dinámica")
 
+    # --- CARGA DEL PADRON (Solo Admin/Superadmin) ---
+    if st.session_state.rol in ["admin", "superadmin"]:
+        with st.expander("📁 Cargar Padrón Oficial (PDF)"):
+            archivo_padron = st.file_uploader("Subir PDF del padrón para calcular porcentajes exactos", type="pdf")
+            if archivo_padron:
+                dict_padron = procesar_padron_estatico(archivo_padron)
+                st.session_state["dict_padron"] = dict_padron
+                st.success(f"✅ Padrón procesado: {len(dict_padron)} mesas detectadas.")
+
+    # Variables de control
+    rol = st.session_state.get("rol")
+    mesa_f = st.session_state.get("mesa_asignada")
+    usuario_f = st.session_state.get("usuario")
+    padron_procesado = st.session_state.get("dict_padron", {})
+
+    # --- VISTA FISCAL: FORMULARIO DE CARGA ---
+    if rol == "fiscal":
+        total_esta_mesa = padron_procesado.get(str(mesa_f), 0)
+        st.subheader(f"Corte de mesa {mesa_f}")
+        
+        if total_esta_mesa > 0:
+            st.info(f"📍 Total electores en padrón para esta mesa: **{total_esta_mesa}**")
+        else:
+            st.warning("⚠️ Padrón no cargado por administrador. El porcentaje global no se verá reflejado aún.")
+
+        # Consultamos si ya existe algún dato previo en la DB para mostrarlo
+        with engine.connect() as conn:
+            res_p = conn.execute(
+        text("SELECT cantidad_voto, hora_participacion FROM mesas WHERE mesa = :m"),
+        {"m": mesa_f}
+        ).fetchone()
+        
+        c_ini = res_p[0] if res_p and res_p[0] is not None else 0
+        h_ini_str = res_p[1] if res_p and res_p[1] is not None else datetime.now().strftime("%H:%M")
+
+        with st.form("carga_participacion_fiscal"):
+            col_a, col_b = st.columns(2)
+            with col_a:
+                nueva_cantidad = st.number_input("Cantidad de votantes actuales", min_value=0, value=c_ini, step=1)
+            with col_b:
+                try:
+                    h_obj = datetime.strptime(h_ini_str, "%H:%M").time()
+                except:
+                    h_obj = datetime.now().time()
+                nueva_hora = st.time_input("Hora del corte", value=h_obj)
+            
+            enviar = st.form_submit_button("Actualizar Participación Provisoria")
+
+        if enviar:
+            # Traemos datos del padrón para inicializar la mesa si no existe
+            info_mesa = get_padron_mesa(mesa_f)
+            sede_f = info_mesa.iloc[0]["sede"] if not info_mesa.empty else "S/D"
+            loc_f = info_mesa.iloc[0]["localidad"] if not info_mesa.empty else "S/D"
+
+            with engine.begin() as conn:
+                conn.execute(
+        text("""
+            INSERT INTO mesas_participacion (
+                mesa, cantidad_voto, hora_participacion, fiscal_user
+            )
+            VALUES (
+                :mesa, :cant, :hora, :user
+            );
+        """),
+        {
+            "mesa": f"PART-{mesa_f}",
+            "cant": nueva_cantidad,
+            "hora": nueva_hora.strftime("%H:%M"),
+            "user": usuario_f
+        }
+    )
+            st.success(f"✅ Registrado: {nueva_cantidad} votantes a las {nueva_hora.strftime('%H:%M')}")
+            get_mesas.clear()
+            st.rerun()
+
+    # --- VISTA ADMIN/SUPERADMIN: MÉTRICAS BASADAS EN PDF ---
+    if rol in ["admin", "superadmin"]:
+        df_admin = get_mesas()
+        
+        if not df_admin.empty:
+            # Solo trabajamos con las que tienen datos de votos o participación
+            df_con_datos = df_admin.copy()
+            
+            # Función para calcular métricas individuales por fila comparando con el PDF
+            def calcular_metricas_pdf(row):
+                m_id = str(row["mesa"])
+                votos = row["cantidad_voto"] if row["cantidad_voto"] else 0
+                total_padron = padron_procesado.get(m_id, 0)
+                porc = (votos / total_padron * 100) if total_padron > 0 else 0
+                return pd.Series([total_padron, porc])
+
+            df_con_datos[["Total Padrón", "% Part."]] = df_con_datos.apply(calcular_metricas_pdf, axis=1)
+            
+            # Totales Generales
+            t_votantes = int(df_con_datos["cantidad_voto"].sum())
+            total_electores_pdf = sum(padron_procesado.values()) if padron_procesado else PADRON_TOTAL
+            perc_global = (t_votantes / total_electores_pdf * 100) if total_electores_pdf > 0 else 0
+
+            m1, m2, m3 = st.columns(3)
+            m1.metric("Votantes en Urna", f"{t_votantes:,}")
+            m2.metric("% Participación Global", f"{perc_global:.2f}%")
+            m3.metric("Mesas Reportadas", f"{len(df_con_datos[df_con_datos['cantidad_voto'] > 0])}")
+
+            st.divider()
+            
+            # Tabla de monitoreo detallada
+            st.subheader("📋 Detalle por Mesa")
+            st.dataframe(
+                df_con_datos[["mesa", "localidad", "cantidad_voto", "Total Padrón", "% Part.", "hora_participacion"]]
+                .sort_values(by="% Part.", ascending=False),
+                use_container_width=True,
+                column_config={
+                    "mesa": "Mesa",
+                    "cantidad_voto": "Votaron",
+                    "Total Padrón": "Padron Real",
+                    "% Part.": st.column_config.NumberColumn("Participación", format="%.2f%%"),
+                    "hora_participacion": "Últ. Corte"
+                }
+            )
+        else:
+            st.info("Aún no hay datos de participación cargados.")
             st.download_button(
                 "📥 Descargar Excel Localidad",
                 data=excel_data,

@@ -95,7 +95,8 @@ def procesar_padron_estatico(ruta_pdf):
 
 # --- CARGA INICIAL (Fuera de los tabs, al principio del script) ---
 # Cambia "padron-con-corte-por-mesa.pdf" por el nombre exacto de tu archivo
-RUTA_PDF = "padron-con-corte-por-mesa.pdf"
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+RUTA_PDF = os.path.join(BASE_DIR, "assets", "padron-con-corte-por-mesa.pdf")
 if "dict_padron" not in st.session_state:
     st.session_state["dict_padron"] = procesar_padron_estatico(RUTA_PDF)
 

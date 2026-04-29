@@ -56,47 +56,75 @@ import re
 import os
 
 @st.cache_data
-def procesar_padron_estatico(ruta_pdf):
-    """
-    Lee el archivo PDF local y devuelve el diccionario de totales por mesa.
-    """
-    if not os.path.exists(ruta_pdf):
-        return {}
-    
-    try:
-        with open(ruta_pdf, "rb") as f:
-            pdf_reader = PyPDF2.PdfReader(f)
-            texto_completo = ""
-            for page in pdf_reader.pages:
-                content = page.extract_text()
-                if content:
-                    texto_completo += content
+def procesar_padron_estatico(file_or_path):
+    import PyPDF2
+    import re
+    import os
 
+    try:
+        # =========================
+        # PDF LOCAL
+        # =========================
+        if isinstance(file_or_path, str):
+            if not os.path.exists(file_or_path):
+                st.error(f"No existe el archivo: {file_or_path}")
+                return {}
+
+            pdf = open(file_or_path, "rb")
+
+        # =========================
+        # PDF STREAMLIT
+        # =========================
+        else:
+            pdf = file_or_path
+
+        reader = PyPDF2.PdfReader(pdf)
+
+        texto = ""
+        for page in reader.pages:
+            t = page.extract_text()
+            if t:
+                texto += t + "\n"
+
+        if not texto.strip():
+            st.error("❌ El PDF no tiene texto extraíble (PyPDF2 falló)")
+            return {}
+
+        # =========================
+        # PARSEO
+        # =========================
         dict_totales = {}
-        # Separamos por el marcador "MESA:" que aparece en tu PDF
-        bloques = re.split(r'MESA:', texto_completo)
+
+        bloques = re.split(r'MESA\s*:', texto, flags=re.IGNORECASE)
 
         for bloque in bloques:
-            lineas = bloque.split('\n')
-            if not lineas: continue
-            
-            # Extraer el número de mesa (ej: "151" de "151: ESCUELA...")
-            match_mesa = re.search(r'^\s*(\d+)', lineas[0])
-            if match_mesa:
-                num_mesa = match_mesa.group(1)
-                # Contamos los electores buscando la palabra "DNI" en este bloque
-                electores = bloque.count("DNI")
-                if electores > 0:
-                    dict_totales[str(num_mesa)] = electores
+            if not bloque.strip():
+                continue
+
+            # mesa
+            m = re.search(r'^(\d+)', bloque.strip())
+            if not m:
+                continue
+
+            mesa = m.group(1)
+
+            # 👇 MEJOR MÉTODO: contar números de DNI (7-8 dígitos)
+            dnies = re.findall(r'\b\d{7,8}\b', bloque)
+
+            if len(dnies) > 0:
+                dict_totales[str(mesa)] = len(dnies)
+
         return dict_totales
+
     except Exception as e:
-        print(f"Error procesando padrón: {e}")
+        st.error(f"Error procesando PDF: {e}")
         return {}
 
 # --- CARGA INICIAL (Fuera de los tabs, al principio del script) ---
 # Cambia "padron-con-corte-por-mesa.pdf" por el nombre exacto de tu archivo
+import os
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-RUTA_PDF = os.path.join(BASE_DIR, "assets", "padron-con-corte-por-mesa.pdf")
+RUTA_PDF = os.path.join(BASE_DIR, "padron-con-corte-por-mesa.pdf")
 if "dict_padron" not in st.session_state:
     st.session_state["dict_padron"] = procesar_padron_estatico(RUTA_PDF)
 

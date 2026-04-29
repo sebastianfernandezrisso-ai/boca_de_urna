@@ -101,31 +101,27 @@ def generar_excel(df_dict):
 # =========================
 # LOGIN
 # =========================
+# Generamos los 151 usuarios de fiscales dinámicamente
 USUARIOS = {
-    "admin": {
-        "password": hashlib.sha256("admin1986".encode()).hexdigest(),
-        "rol": "admin",
-    },
-    "usuario": {
-        "password": hashlib.sha256("carga123".encode()).hexdigest(),
-        "rol": "user",
-    },
-    "superadmin": {
-        "password": hashlib.sha256("super123".encode()).hexdigest(),
-        "rol": "superadmin",
-    },
+    "admin": {"password": hashlib.sha256("admin1986".encode()).hexdigest(), "rol": "admin"},
+    "superadmin": {"password": hashlib.sha256("super123".encode()).hexdigest(), "rol": "superadmin"},
 }
 
-if not st.session_state.get("logged", False):
-    st.markdown("""
-        <style>
-            section[data-testid="stSidebar"] {
-                display: none;
-            }
-        </style>
-    """, unsafe_allow_html=True)
+for i in range(1, 152):
+    user_id = f"fiscal{i}"
+    # Password por defecto: "mesa" + número (ej: mesa1, mesa2...) 
+    # ¡Cámbialo por algo más seguro si es necesario!
+    pass_text = f"mesa{i}" 
+    USUARIOS[user_id] = {
+        "password": hashlib.sha256(pass_text.encode()).hexdigest(),
+        "rol": "fiscal",
+        "mesa_asignada": str(i)
+    }
+
 def login():
     st.title("🔐 Login")
+    
+    # Capturamos los datos de los inputs
     usuario = st.text_input("Usuario")
     password = st.text_input("Contraseña", type="password")
 
@@ -133,13 +129,20 @@ def login():
         if usuario in USUARIOS:
             hashed = hashlib.sha256(password.encode()).hexdigest()
             if hashed == USUARIOS[usuario]["password"]:
+                # Guardamos todo en el session_state
                 st.session_state.logged = True
                 st.session_state.usuario = usuario
                 st.session_state.rol = USUARIOS[usuario]["rol"]
+                
+                # Guardamos la mesa asignada (será un número para fiscales o None para admin)
+                st.session_state.mesa_asignada = USUARIOS[usuario].get("mesa_asignada")
+                
                 st.rerun()
             else:
                 st.error("Contraseña incorrecta")
         else:
+            st.error("Usuario no existe")
+    else:
             st.error("Usuario no existe")
 if st.session_state.get("logged", False) and st.session_state.rol in ["admin", "superadmin"]:
 
@@ -251,20 +254,28 @@ with tab1:
         st.session_state.limpiar_form = False
 
     if st.session_state.limpiar_form:
-        for k in [
-            "mesa",
-            "movimiento",
-            "lista2",
-            "blanco",
-            "impugnados",
-            "recurridos",
-            "nulos",
-        ]:
+        # Limpiamos los campos, pero NO tocamos 'mesa' en el session_state 
+        # si es fiscal para que no se borre su asignación
+        campos_a_limpiar = ["movimiento", "lista2", "blanco", "impugnados", "recurridos", "nulos"]
+        if st.session_state.rol != "fiscal":
+             campos_a_limpiar.append("mesa")
+             
+        for k in campos_a_limpiar:
             st.session_state[k] = 0
         st.session_state.limpiar_form = False
 
+    # --- Lógica de Usuario ---
+    es_fiscal = st.session_state.rol == "fiscal"
+    mesa_asignada = st.session_state.get("mesa_asignada", "")
+
     with st.form("carga"):
-        mesa = st.text_input("Mesa")
+        # Si es fiscal, la mesa viene pre-cargada y bloqueada
+        if es_fiscal:
+            st.info(f"📋 Cargando datos como: **{st.session_state.usuario}**")
+            mesa = st.text_input("Mesa", value=mesa_asignada, disabled=True)
+        else:
+            # Si es admin/superadmin, puede escribir la mesa
+            mesa = st.text_input("Mesa", placeholder="Ingrese número de mesa")
 
         col1, col2 = st.columns(2)
 
@@ -273,78 +284,93 @@ with tab1:
                 "Lista Movimiento",
                 min_value=0,
                 value=None,
-                placeholder="Ingrese votos",
+                placeholder="0",
                 key="movimiento",
             )
             lista2 = st.number_input(
                 "Multicolor",
                 min_value=0,
                 value=None,
-                placeholder="Ingrese votos",
+                placeholder="0",
                 key="lista2",
             )
             blanco = st.number_input(
                 "Blanco",
                 min_value=0,
                 value=None,
-                placeholder="Ingrese votos",
+                placeholder="0",
                 key="blanco",
             )
 
         with col2:
-
             impugnados = st.number_input(
                 "Impugnados",
                 min_value=0,
                 value=None,
-                placeholder="Ingrese votos",
+                placeholder="0",
                 key="impugnados",
             )
             recurridos = st.number_input(
                 "Recurridos",
                 min_value=0,
                 value=None,
-                placeholder="Ingrese votos",
+                placeholder="0",
                 key="recurridos",
             )
-
             nulos = st.number_input(
                 "Nulos",
                 min_value=0,
                 value=None,
-                placeholder="Ingrese votos",
+                placeholder="0",
                 key="nulos",
             )
 
         if st.form_submit_button("Guardar"):
-            result = get_padron_mesa(mesa)
-
-            if result.empty:
-                st.error("Mesa no existe")
+            if not mesa:
+                st.error("Debe indicar un número de mesa")
             else:
-                sede = result.iloc[0]["sede"]
-                localidad = result.iloc[0]["localidad"]
+                result = get_padron_mesa(mesa)
 
-                try:
-                    with engine.begin() as conn:
-                        conn.execute(
-                            text(
-                                """
-                        INSERT INTO mesas
-                        (mesa, sede, localidad, "Lista movimiento","Multicolor",blanco,impugnados,recurridos,nulos)
-                        VALUES (:mesa,:sede,:localidad,:movimiento,:lista2,:blanco,:impugnados,:recurridos,:nulos)
-                        """
-                            ),
-                            locals(),
-                        )
+                if result.empty:
+                    st.error(f"La mesa {mesa} no existe en el padrón")
+                else:
+                    sede = result.iloc[0]["sede"]
+                    localidad = result.iloc[0]["localidad"]
+                    
+                    # Identificamos quién carga para la auditoría
+                    fiscal_user = st.session_state.usuario
 
-                    st.success("Guardado")
-                    st.session_state.limpiar_form = True
-                    get_mesas.clear()
-                    st.rerun()
+                    try:
+                        with engine.begin() as conn:
+                            conn.execute(
+                                text(
+                                    """
+                                    INSERT INTO mesas 
+                                    (mesa, sede, localidad, "Lista movimiento", "Multicolor", blanco, impugnados, recurridos, nulos, fiscal_user)
+                                    VALUES (:mesa, :sede, :localidad, :movimiento, :lista2, :blanco, :impugnados, :recurridos, :nulos, :fiscal_user)
+                                    """
+                                ),
+                                {
+                                    "mesa": mesa,
+                                    "sede": sede,
+                                    "localidad": localidad,
+                                    "movimiento": movimiento if movimiento is not None else 0,
+                                    "lista2": lista2 if lista2 is not None else 0,
+                                    "blanco": blanco if blanco is not None else 0,
+                                    "impugnados": impugnados if impugnados is not None else 0,
+                                    "recurridos": recurridos if recurridos is not None else 0,
+                                    "nulos": nulos if nulos is not None else 0,
+                                    "fiscal_user": fiscal_user
+                                }
+                            )
 
-                except IntegrityError:
-                    st.warning("Mesa ya cargada")
+                        st.success(f"✅ Mesa {mesa} guardada exitosamente")
+                        st.session_state.limpiar_form = True
+                        get_mesas.clear()
+                        st.rerun()
+
+                    except IntegrityError:
+                        st.warning(f"⚠️ La mesa {mesa} ya fue cargada anteriormente.")
 
 # ================= TAB 2 =================
 with tab2:

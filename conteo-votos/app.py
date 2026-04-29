@@ -792,23 +792,23 @@ with tab4:
            with engine.begin() as conn:
                 conn.execute(
                     text("""
-            INSERT INTO mesas_participacion (
-                mesa, cantidad_voto, hora_participacion, fiscal_user
+                INSERT INTO mesas_participacion (
+                    mesa, cantidad_voto, hora_participacion, fiscal_user
             )
-            VALUES (
+                VALUES (
                 :mesa, :cant, :hora, :user
             )
-            ON CONFLICT (mesa)
-            DO UPDATE SET
+                ON CONFLICT (mesa)
+                DO UPDATE SET
                 cantidad_voto = EXCLUDED.cantidad_voto,
                 hora_participacion = EXCLUDED.hora_participacion,
                 fiscal_user = EXCLUDED.fiscal_user;
         """),
         {
-            "mesa": f"PART-{mesa_f}",
-            "cant": nueva_cantidad,
-            "hora": nueva_hora.strftime("%H:%M"),
-            "user": usuario_f
+                "mesa": f"PART-{mesa_f}",
+                "cant": nueva_cantidad,
+                "hora": nueva_hora.strftime("%H:%M"),
+                "user": usuario_f
         }
     )
             st.success(f"✅ Registrado: {nueva_cantidad} votantes a las {nueva_hora.strftime('%H:%M')}")

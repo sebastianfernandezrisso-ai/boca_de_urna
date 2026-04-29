@@ -27,4 +27,3 @@ def create_table():
 );
         """))
     
-

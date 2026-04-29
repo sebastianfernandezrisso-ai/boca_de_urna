@@ -732,9 +732,16 @@ with tab4:
         with st.expander("📁 Cargar Padrón Oficial (PDF)"):
             archivo_padron = st.file_uploader("Subir PDF del padrón para calcular porcentajes exactos", type="pdf")
             if archivo_padron:
-                dict_padron = procesar_padron_estatico(archivo_padron)
+                import tempfile
+
+                with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
+                    tmp.write(archivo_padron.read())
+                    tmp_path = tmp.name
+
+                dict_padron = procesar_padron_estatico(tmp_path)
                 st.session_state["dict_padron"] = dict_padron
-                st.success(f"✅ Padrón procesado: {len(dict_padron)} mesas detectadas.")
+
+    st.success(f"✅ Padrón procesado: {len(dict_padron)} mesas detectadas.")
 
     # Variables de control
     rol = st.session_state.get("rol")

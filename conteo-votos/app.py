@@ -95,8 +95,7 @@ def procesar_padron_estatico(ruta_pdf):
 
 # --- CARGA INICIAL (Fuera de los tabs, al principio del script) ---
 # Cambia "padron-con-corte-por-mesa.pdf" por el nombre exacto de tu archivo
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-RUTA_PDF = os.path.join(BASE_DIR, "padron-con-corte-por-mesa.pdf")
+RUTA_PDF = "padron-con-corte-por-mesa.pdf"
 if "dict_padron" not in st.session_state:
     st.session_state["dict_padron"] = procesar_padron_estatico(RUTA_PDF)
 
@@ -674,9 +673,9 @@ with tab3:
         localidades = sorted(df["localidad"].dropna().unique())
 
         localidad_seleccionada = st.selectbox("Seleccionar localidad", localidades)
-
+        st.session_state["localidad_seleccionada"] = localidad_seleccionada
         df_localidad = df[df["localidad"] == localidad_seleccionada]
-
+        
         st.markdown(f"### 📍 Resultados en {localidad_seleccionada}")
 
         # =========================
@@ -776,38 +775,41 @@ with tab4:
             
             enviar = st.form_submit_button("Actualizar Participación Provisoria")
 
-        if enviar:
-    # Traemos datos del padrón para inicializar la mesa si no existe
-            info_mesa = get_padron_mesa(mesa_f)
-            sede_f = info_mesa.iloc[0]["sede"] if not info_mesa.empty else "S/D"
-            loc_f = info_mesa.iloc[0]["localidad"] if not info_mesa.empty else "S/D"
+            if enviar:
+                info_mesa = get_padron_mesa(mesa_f)
 
-            with engine.begin() as conn:
-                conn.execute(
-            text("""
-                INSERT INTO mesas_participacion (
-                    mesa, cantidad_voto, hora_participacion, fiscal_user
-                )
-                VALUES (
-                    :mesa, :cant, :hora, :user
-                )
-                ON CONFLICT (mesa)
-                DO UPDATE SET
-                    cantidad_voto = EXCLUDED.cantidad_voto,
-                    hora_participacion = EXCLUDED.hora_participacion,
-                    fiscal_user = EXCLUDED.fiscal_user;
-            """),
-            {
-                "mesa": f"PART-{mesa_f}",
-                "cant": nueva_cantidad,
-                "hora": nueva_hora.strftime("%H:%M"),
-                "user": usuario_f
-            }
+                sede_f = info_mesa.iloc[0]["sede"] if not info_mesa.empty else "S/D"
+                loc_f = info_mesa.iloc[0]["localidad"] if not info_mesa.empty else "S/D"
+
+                with engine.begin() as conn:
+                    conn.execute(
+    text("""
+        INSERT INTO mesas (
+            mesa, cantidad_voto, hora_participacion, fiscal_user
         )
+        VALUES (
+            :mesa, :cant, :hora, :user
+        )
+        ON CONFLICT (mesa)
+        DO UPDATE SET
+            cantidad_voto = EXCLUDED.cantidad_voto,
+            hora_participacion = EXCLUDED.hora_participacion,
+            fiscal_user = EXCLUDED.fiscal_user;
+    """),
+    {
+        "mesa": str(mesa_f),   # 👈 IMPORTANTE: sin PART-
+        "cant": nueva_cantidad,
+        "hora": nueva_hora.strftime("%H:%M"),
+        "user": usuario_f
+    }
+)
 
-    st.success(f"✅ Registrado: {nueva_cantidad} votantes a las {nueva_hora.strftime('%H:%M')}")
-    get_mesas.clear()
-    st.rerun()
+                st.success(
+                f"✅ Registrado: {nueva_cantidad} votantes a las {nueva_hora.strftime('%H:%M')}"
+                )
+
+                get_mesas.clear()
+                st.rerun()
 
     # --- VISTA ADMIN/SUPERADMIN: MÉTRICAS BASADAS EN PDF ---
     if rol in ["admin", "superadmin"]:
@@ -858,7 +860,7 @@ with tab4:
             st.download_button(
                 "📥 Descargar Excel Localidad",
                 data=excel_data,
-                file_name=f"resultados_{localidad_seleccionada}.xlsx",
+                file_name = f"resultados_{st.session_state.get('localidad_seleccionada','')}.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                 use_container_width=True,
             )

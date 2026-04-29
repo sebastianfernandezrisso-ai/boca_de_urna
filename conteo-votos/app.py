@@ -789,7 +789,7 @@ with tab4:
             sede_f = info_mesa.iloc[0]["sede"] if not info_mesa.empty else "S/D"
             loc_f = info_mesa.iloc[0]["localidad"] if not info_mesa.empty else "S/D"
 
-            with engine.begin() as conn:
+           with engine.begin() as conn:
                 conn.execute(
         text("""
             INSERT INTO mesas_participacion (
@@ -797,7 +797,12 @@ with tab4:
             )
             VALUES (
                 :mesa, :cant, :hora, :user
-            );
+            )
+            ON CONFLICT (mesa)
+            DO UPDATE SET
+                cantidad_voto = EXCLUDED.cantidad_voto,
+                hora_participacion = EXCLUDED.hora_participacion,
+                fiscal_user = EXCLUDED.fiscal_user;
         """),
         {
             "mesa": f"PART-{mesa_f}",

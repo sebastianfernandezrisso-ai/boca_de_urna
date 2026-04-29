@@ -741,7 +741,7 @@ with tab4:
                 dict_padron = procesar_padron_estatico(tmp_path)
                 st.session_state["dict_padron"] = dict_padron
 
-    st.success(f"✅ Padrón procesado: {len(dict_padron)} mesas detectadas.")
+                st.success(f"✅ Padrón procesado: {len(dict_padron)} mesas detectadas.")
 
     # Variables de control
     rol = st.session_state.get("rol")

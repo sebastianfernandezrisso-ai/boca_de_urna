@@ -95,8 +95,7 @@ def procesar_padron_estatico(ruta_pdf):
 
 # --- CARGA INICIAL (Fuera de los tabs, al principio del script) ---
 # Cambia "padron-con-corte-por-mesa.pdf" por el nombre exacto de tu archivo
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-RUTA_PDF = os.path.join(BASE_DIR, "padron-con-corte-por-mesa.pdf")
+RUTA_PDF = "padron-con-corte-por-mesa.pdf"
 if "dict_padron" not in st.session_state:
     st.session_state["dict_padron"] = procesar_padron_estatico(RUTA_PDF)
 
@@ -733,15 +732,8 @@ with tab4:
         with st.expander("📁 Cargar Padrón Oficial (PDF)"):
             archivo_padron = st.file_uploader("Subir PDF del padrón para calcular porcentajes exactos", type="pdf")
             if archivo_padron:
-                import tempfile
-
-                with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
-                    tmp.write(archivo_padron.read())
-                    tmp_path = tmp.name
-
-                dict_padron = procesar_padron_estatico(tmp_path)
+                dict_padron = procesar_padron_estatico(archivo_padron)
                 st.session_state["dict_padron"] = dict_padron
-
                 st.success(f"✅ Padrón procesado: {len(dict_padron)} mesas detectadas.")
 
     # Variables de control
@@ -784,36 +776,37 @@ with tab4:
             enviar = st.form_submit_button("Actualizar Participación Provisoria")
 
         if enviar:
-            # Traemos datos del padrón para inicializar la mesa si no existe
+    # Traemos datos del padrón para inicializar la mesa si no existe
             info_mesa = get_padron_mesa(mesa_f)
             sede_f = info_mesa.iloc[0]["sede"] if not info_mesa.empty else "S/D"
             loc_f = info_mesa.iloc[0]["localidad"] if not info_mesa.empty else "S/D"
 
-           with engine.begin() as conn:
+            with engine.begin() as conn:
                 conn.execute(
-                    text("""
+            text("""
                 INSERT INTO mesas_participacion (
                     mesa, cantidad_voto, hora_participacion, fiscal_user
-            )
+                )
                 VALUES (
-                :mesa, :cant, :hora, :user
-            )
+                    :mesa, :cant, :hora, :user
+                )
                 ON CONFLICT (mesa)
                 DO UPDATE SET
-                cantidad_voto = EXCLUDED.cantidad_voto,
-                hora_participacion = EXCLUDED.hora_participacion,
-                fiscal_user = EXCLUDED.fiscal_user;
-        """),
-        {
+                    cantidad_voto = EXCLUDED.cantidad_voto,
+                    hora_participacion = EXCLUDED.hora_participacion,
+                    fiscal_user = EXCLUDED.fiscal_user;
+            """),
+            {
                 "mesa": f"PART-{mesa_f}",
                 "cant": nueva_cantidad,
                 "hora": nueva_hora.strftime("%H:%M"),
                 "user": usuario_f
-        }
-    )
-            st.success(f"✅ Registrado: {nueva_cantidad} votantes a las {nueva_hora.strftime('%H:%M')}")
-            get_mesas.clear()
-            st.rerun()
+            }
+        )
+
+    st.success(f"✅ Registrado: {nueva_cantidad} votantes a las {nueva_hora.strftime('%H:%M')}")
+    get_mesas.clear()
+    st.rerun()
 
     # --- VISTA ADMIN/SUPERADMIN: MÉTRICAS BASADAS EN PDF ---
     if rol in ["admin", "superadmin"]:

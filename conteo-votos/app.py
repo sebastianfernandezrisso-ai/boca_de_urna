@@ -674,9 +674,9 @@ if st.session_state.rol == "superadmin":
         )
 
 with tab3:
-    if st.session_state.rol not in ["admin", "superadmin"]:
-        st.warning("⛔ Acceso restringido a administradores")
-        st.stop()
+    if st.session_state.rol != "admin":
+        st.warning("⛔ Solo el administrador puede ver resultados")
+        #st.stop()
 
     st.markdown("### RESULTADOS POR LOCALIDAD/MESAS")
 

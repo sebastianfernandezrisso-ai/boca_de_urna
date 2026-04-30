@@ -966,12 +966,12 @@ with tab4:
                     "hora_participacion": "Últ. Corte"
                 }
             )
-        else:
-            st.info("Aún no hay datos de participación cargados.")
-            st.download_button(
-                "📥 Descargar Excel Localidad",
-                data=excel_data,
-                file_name = f"resultados_{st.session_state.get('localidad_seleccionada','')}.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                use_container_width=True,
-            )
+        #else:
+            #st.info("Aún no hay datos de participación cargados.")
+            #st.download_button(
+               # "📥 Descargar Excel Localidad",
+                #data=excel_data,
+                #file_name = f"resultados_{st.session_state.get('localidad_seleccionada','')}.xlsx",
+               # mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                #use_container_width=True,
+           # )

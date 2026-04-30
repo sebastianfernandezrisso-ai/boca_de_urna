@@ -551,17 +551,87 @@ with tab2:
         
         st.divider()
 
-        totales_df = totales.to_frame("Votos").reset_index()
-        totales_df.columns = ["Lista", "Votos"]
+# =========================
+# PREPARAR DATOS
+# =========================
+totales_df = totales.to_frame("Votos").reset_index()
+totales_df.columns = ["Lista", "Votos"]
 
-        excel_data = generar_excel(
-            {
-                "Mesas": df,
-                "Totales": totales_df,
-            }
-        )
+# Normalizar df por seguridad
+df_export = df.copy()
 
-        st.download_button("Descargar Excel con totales", excel_data, "resultados.xlsx")
+cols = [
+    "Lista movimiento",
+    "Multicolor",
+    "blanco",
+    "impugnados",
+    "recurridos",
+    "nulos",
+]
+
+df_export[cols] = df_export[cols].apply(pd.to_numeric, errors="coerce").fillna(0)
+
+
+st.divider()
+st.markdown("### 📥 Exportar por Mesa")
+
+# =========================
+# SELECTOR DE MESA
+# =========================
+mesas_disponibles = sorted(df_export["mesa"].astype(str).unique())
+
+mesa_sel = st.selectbox(
+    "Seleccionar mesa para exportar",
+    mesas_disponibles
+)
+
+# =========================
+# FILTRAR
+# =========================
+df_mesa = df_export[df_export["mesa"].astype(str) == mesa_sel]
+
+if not df_mesa.empty:
+
+    # Totales de ESA mesa (para gráfico)
+    totales_mesa = df_mesa[cols].sum().sort_values(ascending=False)
+
+    totales_mesa_df = totales_mesa.to_frame("Votos").reset_index()
+    totales_mesa_df.columns = ["Lista", "Votos"]
+
+    # =========================
+    # GENERAR EXCEL
+    # =========================
+    excel_mesa = generar_excel(
+        {
+            f"Mesa_{mesa_sel}": df_mesa,
+            "Totales": totales_mesa_df,
+        }
+    )
+
+    st.download_button(
+        f"📥 Descargar Mesa {mesa_sel}",
+        excel_mesa,
+        f"mesa_{mesa_sel}.xlsx",
+        use_container_width=True
+    )
+else:
+    st.warning("No hay datos para esa mesa")
+# =========================
+# 🔥 EXCEL COMPLETO
+# =========================
+excel_completo = generar_excel(
+    {
+        "Mesas": df_export,
+        "Totales": totales_df,
+    }
+)
+
+st.download_button(
+    "📥 Descargar Excel Completo",
+    excel_completo,
+    "resultados_completos.xlsx",
+    use_container_width=True
+)
 ###RESET POR MESA########
 if st.session_state.rol in ["admin", "superadmin"]:
 
@@ -752,6 +822,13 @@ with tab3:
                     "Totales": totales_df,
                     "Porcentajes": porcentajes_df,
                 }
+            )
+            st.download_button(
+            "📥 Descargar Excel de esta localidad",
+            data=excel_data,
+            file_name=f"resultados_{localidad_seleccionada}.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            use_container_width=True,
             )
 # ================= TAB 4 =================
 with tab4:

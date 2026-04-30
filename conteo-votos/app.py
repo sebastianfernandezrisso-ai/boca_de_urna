@@ -33,7 +33,7 @@ st.markdown(
 # =========================
 # CACHE
 # =========================
-@st.cache_data(ttl=5)
+@st.cache_data(ttl=2, show_spinner=False)
 def get_mesas():
     return pd.read_sql("SELECT * FROM mesas", engine)
 
@@ -450,7 +450,7 @@ with tab1:
                         st.success(f"✅ Mesa {mesa} guardada exitosamente")
                         st.session_state.limpiar_form = True
                         get_mesas.clear()
-                        st.rerun()
+                        st.toast("Actualizado")
 
                     except IntegrityError:
                         st.warning(f"⚠️ La mesa {mesa} ya fue cargada anteriormente.")
@@ -857,7 +857,15 @@ with tab4:
                 porc = (votos / total_padron * 100) if total_padron > 0 else 0
                 return pd.Series([total_padron, porc])
 
-            df_con_datos[["Total Padrón", "% Part."]] = df_con_datos.apply(calcular_metricas_pdf, axis=1)
+            df_con_datos["mesa"] = df_con_datos["mesa"].astype(str)
+
+            df_con_datos["Total Padrón"] = df_con_datos["mesa"].map(padron_procesado).fillna(0)
+
+            df_con_datos["cantidad_voto"] = pd.to_numeric(df_con_datos["cantidad_voto"], errors="coerce").fillna(0)
+
+            df_con_datos["% Part."] = (
+                df_con_datos["cantidad_voto"] / df_con_datos["Total Padrón"]
+        ).replace([float("inf")], 0).fillna(0) * 100
             
             # Totales Generales
             t_votantes = int(df_con_datos["cantidad_voto"].sum())

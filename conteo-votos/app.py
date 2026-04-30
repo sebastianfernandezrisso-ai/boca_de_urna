@@ -51,73 +51,48 @@ def colorear_filas(row):
         return ["background-color: #f7c5c5; color: black"] * len(row)
 
 
-import PyPDF2
+import pdfplumber
 import re
-import os
 
 @st.cache_data
 def procesar_padron_estatico(file_or_path):
-    import PyPDF2
-    import re
-    import os
+
+    def reconstruir_numeros(texto):
+        # junta números separados por espacios (15 06 -> 1506)
+        texto = re.sub(r'(\d)\s+(\d)', r'\1\2', texto)
+        return texto
 
     try:
-        # =========================
-        # PDF LOCAL
-        # =========================
-        if isinstance(file_or_path, str):
-            if not os.path.exists(file_or_path):
-                st.error(f"No existe el archivo: {file_or_path}")
-                return {}
-
-            pdf = open(file_or_path, "rb")
-
-        # =========================
-        # PDF STREAMLIT
-        # =========================
-        else:
-            pdf = file_or_path
-
-        reader = PyPDF2.PdfReader(pdf)
-
         texto = ""
-        for page in reader.pages:
-            t = page.extract_text()
+
+        pdf = pdfplumber.open(file_or_path)
+
+        for page in pdf.pages:
+            t = page.extract_text(x_tolerance=2, y_tolerance=2)
             if t:
-                texto += t + "\n"
+                texto += " " + t
 
-        if not texto.strip():
-            st.error("❌ El PDF no tiene texto extraíble (PyPDF2 falló)")
-            return {}
+        pdf.close()
 
-        # =========================
-        # PARSEO
-        # =========================
+        # 🔥 clave: reconstruir números fragmentados
+        texto = reconstruir_numeros(texto)
+
         dict_totales = {}
 
-        bloques = re.split(r'MESA\s*:', texto, flags=re.IGNORECASE)
+        pattern = re.compile(
+    r'MESA\s*[:\-]?\s*(\d+).*?TOTAL\D{0,10}(\d{1,6})',
+    re.IGNORECASE | re.DOTALL
+)
 
-        for bloque in bloques:
-            if not bloque.strip():
-                continue
-
-            # mesa
-            m = re.search(r'^(\d+)', bloque.strip())
-            if not m:
-                continue
-
-            mesa = m.group(1)
-
-            # 👇 MEJOR MÉTODO: contar números de DNI (7-8 dígitos)
-            dnies = re.findall(r'\b\d{7,8}\b', bloque)
-
-            if len(dnies) > 0:
-                dict_totales[str(mesa)] = len(dnies)
+        for match in pattern.finditer(texto):
+            mesa = match.group(1)
+            total = int(match.group(2))
+            dict_totales[mesa] = total
 
         return dict_totales
 
     except Exception as e:
-        st.error(f"Error procesando PDF: {e}")
+        st.error(f"Error PDF: {e}")
         return {}
 
 # --- CARGA INICIAL (Fuera de los tabs, al principio del script) ---
@@ -219,21 +194,15 @@ def login():
         if usuario in USUARIOS:
             hashed = hashlib.sha256(password.encode()).hexdigest()
             if hashed == USUARIOS[usuario]["password"]:
-                # Guardamos todo en el session_state
                 st.session_state.logged = True
                 st.session_state.usuario = usuario
                 st.session_state.rol = USUARIOS[usuario]["rol"]
-
-                # Guardamos la mesa asignada (será un número para fiscales o None para admin)
                 st.session_state.mesa_asignada = USUARIOS[usuario].get("mesa_asignada")
-
                 st.rerun()
             else:
                 st.error("Contraseña incorrecta")
         else:
             st.error("Usuario no existe")
-    else:
-        st.error("Usuario no existe")
 
 
 if st.session_state.get("logged", False) and st.session_state.rol in [
@@ -579,6 +548,7 @@ with tab2:
         # =========================
         # EXPORT
         # =========================
+        
         st.divider()
 
         totales_df = totales.to_frame("Votos").reset_index()
@@ -592,6 +562,37 @@ with tab2:
         )
 
         st.download_button("Descargar Excel con totales", excel_data, "resultados.xlsx")
+###RESET POR MESA########
+if st.session_state.rol in ["admin", "superadmin"]:
+
+    st.divider()
+    st.markdown("### 🧽 Limpiar votos de una mesa (sin afectar participación)")
+
+    mesa_borrar = st.text_input("Mesa a limpiar", key="mesa_limpiar")
+
+    if st.button("Limpiar escrutinio definitivo"):
+        if not mesa_borrar:
+            st.warning("Ingrese una mesa")
+        else:
+            with engine.begin() as conn:
+                conn.execute(
+                    text("""
+                        UPDATE mesas
+                        SET 
+                            "Lista movimiento" = NULL,
+                            "Multicolor" = NULL,
+                            blanco = NULL,
+                            impugnados = NULL,
+                            recurridos = NULL,
+                            nulos = NULL
+                        WHERE mesa = :mesa
+                    """),
+                    {"mesa": mesa_borrar}
+                )
+
+            st.success(f"✅ Escrutinio de mesa {mesa_borrar} limpiado")
+            get_mesas.clear()
+            st.rerun()
 # =========================
 # 🔥 RESET TOTAL (SOLO SUPERADMIN)
 # =========================
@@ -673,9 +674,9 @@ if st.session_state.rol == "superadmin":
         )
 
 with tab3:
-    if st.session_state.rol != "admin":
-        st.warning("⛔ Solo el administrador puede ver resultados")
-        #st.stop()
+    if st.session_state.rol not in ["admin", "superadmin"]:
+        st.warning("⛔ Acceso restringido a administradores")
+        st.stop()
 
     st.markdown("### RESULTADOS POR LOCALIDAD/MESAS")
 
@@ -833,8 +834,8 @@ with tab4:
     }
 )
 
-                st.success(
-                f"✅ Registrado: {nueva_cantidad} votantes a las {nueva_hora.strftime('%H:%M')}"
+                    st.success(
+                f"✅ Provisorio actualizado — {nueva_cantidad} votantes a las {nueva_hora.strftime('%H:%M')}"
                 )
 
                 get_mesas.clear()

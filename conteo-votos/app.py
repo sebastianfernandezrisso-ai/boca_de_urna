@@ -468,7 +468,7 @@ with tab2:
             "🟢 **Mesa Verificada** &nbsp;&nbsp;&nbsp; 🔴 **Mesa No verificada**"
         )
         st.markdown(
-            "**La verificación se puede guardar desde tabla principal sin ir a editar datos. Esto es por si se chequea que los datos son correctos**"
+            "**La verificación se puede guardar desde tabla principal sin ir a editar datos.**"
         )
 
         if df.empty:
@@ -483,9 +483,13 @@ with tab2:
                 "nulos",
             ]
 
-            # Normalizar datos numéricos
+            # =========================
+            # NORMALIZAR
+            # =========================
             df[cols] = (
-                df[cols].apply(pd.to_numeric, errors="coerce").fillna(0).astype(int)
+                df[cols].apply(pd.to_numeric, errors="coerce")
+                .fillna(0)
+                .astype(int)
             )
 
             # =========================
@@ -543,32 +547,22 @@ with tab2:
             )
 
             # =========================
-            # NAVEGACIÓN
-            # =========================
-            st.page_link("pages/editar_mesas.py", label="✏️ Editar tabla completa")
-
-            # =========================
-            # TOTALES
+            # TOTALES GENERALES
             # =========================
             totales = df[cols].sum().sort_values(ascending=False)
             st.dataframe(totales.to_frame("Total"))
 
-            # =========================
-            # EXPORT (SOLO TAB 2)
-            # =========================
             st.divider()
 
+            # =========================
+            # EXPORT GENERAL
+            # =========================
             totales_df = totales.to_frame("Votos").reset_index()
             totales_df.columns = ["Lista", "Votos"]
 
             df_export = df.copy()
-            df_export[cols] = df_export[cols].apply(
-                pd.to_numeric, errors="coerce"
-            ).fillna(0)
 
-            # 📊 Totales
             excel_totales = generar_excel({"Totales": totales_df})
-
             st.download_button(
                 "📥 Descargar Totales",
                 excel_totales,
@@ -576,9 +570,6 @@ with tab2:
                 use_container_width=True,
             )
 
-            
-
-            # 🔥 Completo
             excel_completo = generar_excel(
                 {
                     "Mesas": df_export,
@@ -592,34 +583,43 @@ with tab2:
                 "resultados_completos.xlsx",
                 use_container_width=True,
             )
+
             # =========================
-# 🎯 FILTRO POR MESA
-# =========================
-st.markdown("### 🎯 Descargar por mesa")
+            # 🎯 FILTRO POR MESA (ARREGLADO)
+            # =========================
+            st.markdown("### 🎯 Descargar por mesa")
 
-mesas_disponibles = sorted(df["mesa"].astype(str).unique())
-mesa_seleccionada = st.selectbox("Seleccionar mesa", mesas_disponibles)
+            mesas_disponibles = sorted(df["mesa"].astype(str).unique())
 
-df_mesa = df[df["mesa"].astype(str) == mesa_seleccionada]
+            mesa_seleccionada = st.selectbox(
+                "Seleccionar mesa",
+                mesas_disponibles,
+                key="select_mesa_tab2"
+            )
 
-# Totales de esa mesa
-totales_mesa = df_mesa[cols].sum()
+            df_mesa = df[df["mesa"].astype(str) == mesa_seleccionada]
 
-totales_mesa_df = totales_mesa.to_frame("Votos").reset_index()
-totales_mesa_df.columns = ["Lista", "Votos"]
-excel_mesa = generar_excel(
-    {
-        f"Mesa_{mesa_seleccionada}": df_mesa,
-        "Totales": totales_mesa_df,
-    }
-)
+            if not df_mesa.empty:
+                totales_mesa = df_mesa[cols].sum()
 
-st.download_button(
-    f"📥 Descargar solo mesa {mesa_seleccionada}",
-    excel_mesa,
-    f"mesa_{mesa_seleccionada}.xlsx",
-    use_container_width=True
-)
+                totales_mesa_df = totales_mesa.to_frame("Votos").reset_index()
+                totales_mesa_df.columns = ["Lista", "Votos"]
+
+                excel_mesa = generar_excel(
+                    {
+                        f"Mesa_{mesa_seleccionada}": df_mesa,
+                        "Totales": totales_mesa_df,
+                    }
+                )
+
+                st.download_button(
+                    f"📥 Descargar solo mesa {mesa_seleccionada}",
+                    excel_mesa,
+                    f"mesa_{mesa_seleccionada}.xlsx",
+                    use_container_width=True,
+                )
+            else:
+                st.warning("No hay datos para esa mesa")
 ###RESET POR MESA########
 if st.session_state.rol in ["admin", "superadmin"]:
 
@@ -969,9 +969,8 @@ with tab4:
         #else:
             #st.info("Aún no hay datos de participación cargados.")
             #st.download_button(
-               # "📥 Descargar Excel Localidad",
-                #data=excel_data,
-                #file_name = f"resultados_{st.session_state.get('localidad_seleccionada','')}.xlsx",
-               # mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                #use_container_width=True,
-           # )
+              ##data=excel_data,
+               # file_name = f"resultados_{st.session_state.get('localidad_seleccionada','')}.xlsx",
+              #  mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+              #  use_container_width=True,
+            #)

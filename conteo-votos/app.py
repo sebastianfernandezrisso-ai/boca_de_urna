@@ -9,7 +9,7 @@ from datetime import datetime
 import PyPDF2
 import re
 TOTAL_MESAS = 151
-PADRON_TOTAL = 9814
+PADRON_TOTAL = 9794
 
 # =========================
 # CONFIG
@@ -774,7 +774,10 @@ with tab4:
 
     # --- VISTA FISCAL: FORMULARIO DE CARGA ---
     if rol == "fiscal":
-        total_esta_mesa = padron_procesado.get(str(mesa_f), 0)
+        if str(mesa_f) == "2":
+            total_esta_mesa = 9794
+        else:
+            total_esta_mesa = padron_procesado.get(str(mesa_f), 0)
         st.subheader(f"Corte de mesa {mesa_f}")
         
         if total_esta_mesa > 0:
@@ -853,7 +856,12 @@ with tab4:
             def calcular_metricas_pdf(row):
                 m_id = str(row["mesa"])
                 votos = row["cantidad_voto"] if row["cantidad_voto"] else 0
-                total_padron = padron_procesado.get(m_id, 0)
+
+                if m_id == "2":
+                    total_padron = 9794
+                else:
+                    total_padron = padron_procesado.get(m_id, 0)
+
                 porc = (votos / total_padron * 100) if total_padron > 0 else 0
                 return pd.Series([total_padron, porc])
 

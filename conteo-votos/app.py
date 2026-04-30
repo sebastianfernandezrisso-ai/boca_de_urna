@@ -458,15 +458,19 @@ with tab1:
 # ================= TAB 2 =================
 with tab2:
     if st.session_state.rol not in ["admin", "superadmin"]:
-        st.warning("🔒 Acceso restringido a administradores. Por favor, utilice las pestañas de Carga o Participación.")
+        st.warning(
+            "🔒 Acceso restringido a administradores. Por favor, utilice las pestañas de Carga o Participación."
+        )
     else:
         df = get_mesas()
 
-        st.markdown("🟢 **Mesa Verificada** &nbsp;&nbsp;&nbsp; 🔴 **Mesa No verificada**")
+        st.markdown(
+            "🟢 **Mesa Verificada** &nbsp;&nbsp;&nbsp; 🔴 **Mesa No verificada**"
+        )
         st.markdown(
             "**La verificación se puede guardar desde tabla principal sin ir a editar datos. Esto es por si se chequea que los datos son correctos**"
         )
-        
+
         if df.empty:
             st.info("Sin datos cargados aún.")
         else:
@@ -480,156 +484,140 @@ with tab2:
             ]
 
             # Normalizar datos numéricos
-            df[cols] = df[cols].apply(pd.to_numeric, errors="coerce").fillna(0).astype(int)
+            df[cols] = (
+                df[cols].apply(pd.to_numeric, errors="coerce").fillna(0).astype(int)
+            )
 
-        # =========================
-        # DATA EDITOR (CHECKBOX)
-        # =========================
-        edited_df = st.data_editor(
-            df,
-            use_container_width=True,
-            disabled=[
-                "id",
-                "mesa",
-                "sede",
-                "localidad",
-                "Lista movimiento",
-                "Multicolor",
-                "blanco",
-                "impugnados",
-                "recurridos",
-                "nulos",
-                "created_at",
-            ],
-            column_config={
-                "verificado": st.column_config.CheckboxColumn("✔ Verificado")
-            },
-            key="editor_verificacion",
-        )
-        # =========================
-        # GUARDAR
-        # =========================
-        if st.button("💾 Guardar verificación"):
-            with engine.begin() as conn:
-                for _, row in edited_df.iterrows():
-                    conn.execute(
-                        text("""
-                            UPDATE mesas
-                            SET verificado = :verificado
-                            WHERE id = :id
-                        """),
-                        {
-                            "verificado": bool(row["verificado"]),
-                            "id": int(row["id"]),
-                        },
-                    )
-            st.success("Verificación actualizada")
-            get_mesas.clear()
-            st.rerun()
-        # =========================
-        # COLORES
-        # =========================
-        st.dataframe(
-            edited_df.style.apply(colorear_filas, axis=1),
-            use_container_width=True,
-        )
+            # =========================
+            # DATA EDITOR
+            # =========================
+            edited_df = st.data_editor(
+                df,
+                use_container_width=True,
+                disabled=[
+                    "id",
+                    "mesa",
+                    "sede",
+                    "localidad",
+                    "Lista movimiento",
+                    "Multicolor",
+                    "blanco",
+                    "impugnados",
+                    "recurridos",
+                    "nulos",
+                    "created_at",
+                ],
+                column_config={
+                    "verificado": st.column_config.CheckboxColumn("✔ Verificado")
+                },
+                key="editor_verificacion",
+            )
 
-        # =========================
-        # NAVEGACIÓN
-        # =========================
-        st.page_link("pages/editar_mesas.py", label="✏️ Editar tabla completa")
+            # =========================
+            # GUARDAR VERIFICACIÓN
+            # =========================
+            if st.button("💾 Guardar verificación"):
+                with engine.begin() as conn:
+                    for _, row in edited_df.iterrows():
+                        conn.execute(
+                            text("""
+                                UPDATE mesas
+                                SET verificado = :verificado
+                                WHERE id = :id
+                            """),
+                            {
+                                "verificado": bool(row["verificado"]),
+                                "id": int(row["id"]),
+                            },
+                        )
+                st.success("Verificación actualizada")
+                get_mesas.clear()
+                st.rerun()
 
-        # =========================
-        # TOTALES
-        # =========================
-        totales = df[cols].sum().sort_values(ascending=False)
-        st.dataframe(totales.to_frame("Total"))
+            # =========================
+            # COLORES
+            # =========================
+            st.dataframe(
+                edited_df.style.apply(colorear_filas, axis=1),
+                use_container_width=True,
+            )
 
-        # =========================
-        # EXPORT
-        # =========================
-        
-        st.divider()
+            # =========================
+            # NAVEGACIÓN
+            # =========================
+            st.page_link("pages/editar_mesas.py", label="✏️ Editar tabla completa")
 
+            # =========================
+            # TOTALES
+            # =========================
+            totales = df[cols].sum().sort_values(ascending=False)
+            st.dataframe(totales.to_frame("Total"))
+
+            # =========================
+            # EXPORT (SOLO TAB 2)
+            # =========================
+            st.divider()
+
+            totales_df = totales.to_frame("Votos").reset_index()
+            totales_df.columns = ["Lista", "Votos"]
+
+            df_export = df.copy()
+            df_export[cols] = df_export[cols].apply(
+                pd.to_numeric, errors="coerce"
+            ).fillna(0)
+
+            # 📊 Totales
+            excel_totales = generar_excel({"Totales": totales_df})
+
+            st.download_button(
+                "📥 Descargar Totales",
+                excel_totales,
+                "totales.xlsx",
+                use_container_width=True,
+            )
+
+            
+
+            # 🔥 Completo
+            excel_completo = generar_excel(
+                {
+                    "Mesas": df_export,
+                    "Totales": totales_df,
+                }
+            )
+
+            st.download_button(
+                "📥 Descargar Excel Completo",
+                excel_completo,
+                "resultados_completos.xlsx",
+                use_container_width=True,
+            )
+            # =========================
+# 🎯 FILTRO POR MESA
 # =========================
-# PREPARAR DATOS
-# =========================
-totales_df = totales.to_frame("Votos").reset_index()
-totales_df.columns = ["Lista", "Votos"]
+st.markdown("### 🎯 Descargar por mesa")
 
-# Normalizar df por seguridad
-df_export = df.copy()
+mesas_disponibles = sorted(df["mesa"].astype(str).unique())
+mesa_seleccionada = st.selectbox("Seleccionar mesa", mesas_disponibles)
 
-cols = [
-    "Lista movimiento",
-    "Multicolor",
-    "blanco",
-    "impugnados",
-    "recurridos",
-    "nulos",
-]
+df_mesa = df[df["mesa"].astype(str) == mesa_seleccionada]
 
-df_export[cols] = df_export[cols].apply(pd.to_numeric, errors="coerce").fillna(0)
+# Totales de esa mesa
+totales_mesa = df_mesa[cols].sum()
 
-
-st.divider()
-st.markdown("### 📥 Exportar por Mesa")
-
-# =========================
-# SELECTOR DE MESA
-# =========================
-mesas_disponibles = sorted(df_export["mesa"].astype(str).unique())
-
-mesa_sel = st.selectbox(
-    "Seleccionar mesa para exportar",
-    mesas_disponibles
-)
-
-# =========================
-# FILTRAR
-# =========================
-df_mesa = df_export[df_export["mesa"].astype(str) == mesa_sel]
-
-if not df_mesa.empty:
-
-    # Totales de ESA mesa (para gráfico)
-    totales_mesa = df_mesa[cols].sum().sort_values(ascending=False)
-
-    totales_mesa_df = totales_mesa.to_frame("Votos").reset_index()
-    totales_mesa_df.columns = ["Lista", "Votos"]
-
-    # =========================
-    # GENERAR EXCEL
-    # =========================
-    excel_mesa = generar_excel(
-        {
-            f"Mesa_{mesa_sel}": df_mesa,
-            "Totales": totales_mesa_df,
-        }
-    )
-
-    st.download_button(
-        f"📥 Descargar Mesa {mesa_sel}",
-        excel_mesa,
-        f"mesa_{mesa_sel}.xlsx",
-        use_container_width=True
-    )
-else:
-    st.warning("No hay datos para esa mesa")
-# =========================
-# 🔥 EXCEL COMPLETO
-# =========================
-excel_completo = generar_excel(
+totales_mesa_df = totales_mesa.to_frame("Votos").reset_index()
+totales_mesa_df.columns = ["Lista", "Votos"]
+excel_mesa = generar_excel(
     {
-        "Mesas": df_export,
-        "Totales": totales_df,
+        f"Mesa_{mesa_seleccionada}": df_mesa,
+        "Totales": totales_mesa_df,
     }
 )
 
 st.download_button(
-    "📥 Descargar Excel Completo",
-    excel_completo,
-    "resultados_completos.xlsx",
+    f"📥 Descargar solo mesa {mesa_seleccionada}",
+    excel_mesa,
+    f"mesa_{mesa_seleccionada}.xlsx",
     use_container_width=True
 )
 ###RESET POR MESA########

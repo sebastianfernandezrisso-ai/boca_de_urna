@@ -8,6 +8,7 @@ import io
 from datetime import datetime
 import PyPDF2
 import re
+from zoneinfo import ZoneInfo
 TOTAL_MESAS = 151
 PADRON_TOTAL = 9794
 
@@ -858,7 +859,13 @@ with tab4:
         ).fetchone()
         
         c_ini = res_p[0] if res_p and res_p[0] is not None else 0
-        h_ini_str = res_p[1] if res_p and res_p[1] is not None else datetime.now().strftime("%H:%M")
+        hora_bsas = datetime.now(ZoneInfo("America/Argentina/Buenos_Aires"))
+
+        h_ini_str = (
+            res_p[1]
+            if res_p and res_p[1] is not None
+            else hora_bsas.strftime("%H:%M")
+        )
 
         with st.form("carga_participacion_fiscal"):
             col_a, col_b = st.columns(2)
@@ -868,7 +875,9 @@ with tab4:
                 try:
                     h_obj = datetime.strptime(h_ini_str, "%H:%M").time()
                 except:
-                    h_obj = datetime.now().time()
+                    h_obj = datetime.now(
+                    ZoneInfo("America/Argentina/Buenos_Aires")
+                    ).time()
                 nueva_hora = st.time_input("Hora del corte", value=h_obj)
             
             enviar = st.form_submit_button("Actualizar Participación Provisoria")

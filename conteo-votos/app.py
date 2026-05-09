@@ -8,7 +8,6 @@ import io
 from datetime import datetime
 import PyPDF2
 import re
-from zoneinfo import ZoneInfo
 TOTAL_MESAS = 151
 PADRON_TOTAL = 9794
 
@@ -859,13 +858,7 @@ with tab4:
         ).fetchone()
         
         c_ini = res_p[0] if res_p and res_p[0] is not None else 0
-        hora_bsas = datetime.now(ZoneInfo("America/Argentina/Buenos_Aires"))
-
-        h_ini_str = (
-            res_p[1]
-            if res_p and res_p[1] is not None
-            else hora_bsas.strftime("%H:%M")
-        )
+        h_ini_str = res_p[1] if res_p and res_p[1] is not None else datetime.now().strftime("%H:%M")
 
         with st.form("carga_participacion_fiscal"):
             col_a, col_b = st.columns(2)
@@ -875,9 +868,7 @@ with tab4:
                 try:
                     h_obj = datetime.strptime(h_ini_str, "%H:%M").time()
                 except:
-                    h_obj = datetime.now(
-                    ZoneInfo("America/Argentina/Buenos_Aires")
-                    ).time()
+                    h_obj = datetime.now().time()
                 nueva_hora = st.time_input("Hora del corte", value=h_obj)
             
             enviar = st.form_submit_button("Actualizar Participación Provisoria")
@@ -892,11 +883,17 @@ with tab4:
                     conn.execute(
     text("""
         INSERT INTO mesas (
-            mesa, cantidad_voto, hora_participacion, fiscal_user
+            mesa,sede,localidad,cantidad_voto, hora_participacion, fiscal_user
         )
         VALUES (
-            :mesa, :cant, :hora, :user
-        )
+            :mesa,
+            :sede,
+            :localidad,
+            :cant,
+            :hora,
+            :user
+            )
+            
         ON CONFLICT (mesa)
         DO UPDATE SET
             cantidad_voto = EXCLUDED.cantidad_voto,
@@ -905,9 +902,12 @@ with tab4:
     """),
     {
         "mesa": str(mesa_f),   # 👈 IMPORTANTE: sin PART-
+        "sede": sede_f,
+        "localidad": loc_f,
         "cant": nueva_cantidad,
         "hora": nueva_hora.strftime("%H:%M"),
-        "user": usuario_f
+        "user": usuario_f        
+        
     }
 )
 

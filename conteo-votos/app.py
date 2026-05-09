@@ -8,6 +8,8 @@ import io
 from datetime import datetime
 import PyPDF2
 import re
+from datetime import datetime
+from zoneinfo import ZoneInfo
 TOTAL_MESAS = 151
 PADRON_TOTAL = 9794
 
@@ -671,7 +673,11 @@ if st.session_state.rol == "superadmin":
     if "backup_excel" not in st.session_state:
         st.session_state.backup_excel = None
 
-    timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M")
+    from zoneinfo import ZoneInfo
+
+    timestamp = datetime.now(
+            ZoneInfo("America/Argentina/Buenos_Aires")
+        ).strftime("%Y-%m-%d_%H-%M")
 
     if st.button("🧨 Generar Backup y Resetear", use_container_width=True):
 
@@ -858,7 +864,13 @@ with tab4:
         ).fetchone()
         
         c_ini = res_p[0] if res_p and res_p[0] is not None else 0
-        h_ini_str = res_p[1] if res_p and res_p[1] is not None else datetime.now().strftime("%H:%M")
+        h_ini_str = (
+            res_p[1]
+            if res_p and res_p[1] is not None
+            else datetime.now(
+                ZoneInfo("America/Argentina/Buenos_Aires")
+            ).strftime("%H:%M")
+                    )
 
         with st.form("carga_participacion_fiscal"):
             col_a, col_b = st.columns(2)
@@ -866,7 +878,9 @@ with tab4:
                 nueva_cantidad = st.number_input("Cantidad de votantes actuales", min_value=0, value=c_ini, step=1)
             with col_b:
                 try:
-                    h_obj = datetime.strptime(h_ini_str, "%H:%M").time()
+                    h_obj = datetime.now(
+                ZoneInfo("America/Argentina/Buenos_Aires")
+                    ).time()
                 except:
                     h_obj = datetime.now().time()
                 nueva_hora = st.time_input("Hora del corte", value=h_obj)

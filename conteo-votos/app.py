@@ -466,6 +466,12 @@ with tab2:
         )
     else:
         df = get_mesas()
+        if "created_at" in df.columns:
+            df["created_at"] = (
+                pd.to_datetime(df["created_at"], utc=True)
+                .dt.tz_convert("America/Argentina/Buenos_Aires")
+                .dt.strftime("%d/%m/%Y %H:%M:%S")
+            )
 
         st.markdown(
             "🟢 **Mesa Verificada** &nbsp;&nbsp;&nbsp; 🔴 **Mesa No verificada**"

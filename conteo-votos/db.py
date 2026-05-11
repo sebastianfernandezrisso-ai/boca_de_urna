@@ -17,8 +17,8 @@ def create_table():
         # =========================
         conn.execute(text("""
             CREATE TABLE IF NOT EXISTS mesas_resultados (
-                id SERIAL PRIMARY KEY,
-                mesa TEXT UNIQUE,
+                #id SERIAL PRIMARY KEY,
+                mesa SERIAL PRIMARY KEY,
                 sede TEXT,
                 localidad TEXT,
 
@@ -39,8 +39,8 @@ def create_table():
         # =========================
         conn.execute(text("""
             CREATE TABLE IF NOT EXISTS mesas_participacion (
-                id SERIAL PRIMARY KEY,
-                mesa TEXT,
+                #id SERIAL PRIMARY KEY,
+                mesa SERIAL PRIMARY KEY,
                 cantidad_voto INTEGER DEFAULT 0,
                 hora_participacion TEXT,
                 fiscal_user TEXT,
@@ -53,8 +53,8 @@ def create_table():
         # =========================
         conn.execute(text("""
             CREATE TABLE IF NOT EXISTS mesas_auditoria (
-                id SERIAL PRIMARY KEY,
-                mesa TEXT,
+                #id SERIAL PRIMARY KEY,
+                mesa SERIAL PRIMARY KEY,
                 tipo_accion TEXT,
                 datos JSONB,
                 usuario TEXT,

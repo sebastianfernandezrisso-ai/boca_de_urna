@@ -112,7 +112,6 @@ if "dict_padron" not in st.session_state:
 def generar_excel(df_dict):
     import io
     from openpyxl.chart import PieChart, Reference
-    from openpyxl import Workbook
 
     output = io.BytesIO()
 
@@ -122,7 +121,33 @@ def generar_excel(df_dict):
         # GUARDAR DATAFRAMES
         # =========================
         for nombre_hoja, df in df_dict.items():
-            df.to_excel(writer, index=False, sheet_name=nombre_hoja[:31])
+
+            # 🔥 Copia segura
+            df_excel = df.copy()
+
+            # 🔥 Convertir columnas datetime con timezone a string
+            for col in df_excel.columns:
+
+                if pd.api.types.is_datetime64_any_dtype(df_excel[col]):
+
+                    try:
+                        df_excel[col] = (
+                            pd.to_datetime(df_excel[col], utc=True)
+                            .dt.tz_convert("America/Argentina/Buenos_Aires")
+                            .dt.strftime("%d/%m/%Y %H:%M:%S")
+                        )
+
+                    except Exception:
+                        df_excel[col] = df_excel[col].astype(str)
+
+            # 🔥 También convierte objetos raros a string
+            df_excel = df_excel.fillna("")
+
+            df_excel.to_excel(
+                writer,
+                index=False,
+                sheet_name=nombre_hoja[:31]
+            )
 
         wb = writer.book
 
@@ -135,19 +160,25 @@ def generar_excel(df_dict):
 
         if totales_df is not None and not totales_df.empty:
 
-            # Escribir datos para gráfico
             ws_chart.append(["Lista", "Votos"])
 
             for _, row in totales_df.iterrows():
                 ws_chart.append([row["Lista"], row["Votos"]])
 
-            # Crear gráfico de torta
             pie = PieChart()
+
             labels = Reference(
-                ws_chart, min_col=1, min_row=2, max_row=len(totales_df) + 1
+                ws_chart,
+                min_col=1,
+                min_row=2,
+                max_row=len(totales_df) + 1
             )
+
             data = Reference(
-                ws_chart, min_col=2, min_row=1, max_row=len(totales_df) + 1
+                ws_chart,
+                min_col=2,
+                min_row=1,
+                max_row=len(totales_df) + 1
             )
 
             pie.add_data(data, titles_from_data=True)
@@ -157,7 +188,6 @@ def generar_excel(df_dict):
             ws_chart.add_chart(pie, "D2")
 
     return output.getvalue()
-
 
 # =========================
 # LOGIN

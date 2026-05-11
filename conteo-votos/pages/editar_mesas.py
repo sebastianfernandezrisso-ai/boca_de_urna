@@ -84,7 +84,7 @@ with col1:
                     "recurridos": int(row["recurridos"]),
                     "nulos": int(row["nulos"]),
                     "verificado": bool(row["verificado"]),
-                    
+                    "mesa": int(row["mesa"]),
                 })
 
         get_mesas.clear()

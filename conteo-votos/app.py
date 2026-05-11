@@ -466,25 +466,6 @@ with tab2:
         )
     else:
         df = get_mesas()
-        if "created_at" in df.columns:
-
-            df["created_at"] = pd.to_datetime(
-        df["created_at"],
-        errors="coerce"
-    )
-
-    # Si no tiene timezone -> asumir UTC
-            df["created_at"] = (
-        df["created_at"]
-        .dt.tz_localize("UTC", nonexistent="shift_forward", ambiguous="NaT")
-        .dt.tz_convert("America/Argentina/Buenos_Aires")
-    )
-
-    # Formato final
-            df["created_at"] = df["created_at"].dt.strftime("%d/%m/%Y %H:%M:%S")
-
-    # Evitar NaN/NaT visibles
-            df["created_at"] = df["created_at"].fillna("-")
 
         st.markdown(
             "🟢 **Mesa Verificada** &nbsp;&nbsp;&nbsp; 🔴 **Mesa No verificada**"

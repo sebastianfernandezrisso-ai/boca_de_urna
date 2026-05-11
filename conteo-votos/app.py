@@ -122,27 +122,36 @@ def generar_excel(df_dict):
         # =========================
         for nombre_hoja, df in df_dict.items():
 
-            # 🔥 Copia segura
+            # Copia segura
             df_excel = df.copy()
 
-            # 🔥 Convertir columnas datetime con timezone a string
+            # Convertir TODAS las columnas datetime timezone-aware
             for col in df_excel.columns:
 
-                if pd.api.types.is_datetime64_any_dtype(df_excel[col]):
+                try:
 
-                    try:
+                    # Si es datetime con timezone
+                    if pd.api.types.is_datetime64tz_dtype(df_excel[col]):
+
                         df_excel[col] = (
-                            pd.to_datetime(df_excel[col], utc=True)
-                            .dt.tz_convert("America/Argentina/Buenos_Aires")
-                            .dt.strftime("%d/%m/%Y %H:%M:%S")
+                            pd.to_datetime(df_excel[col], errors="coerce")
+                            .dt.tz_localize(None)
                         )
 
-                    except Exception:
-                        df_excel[col] = df_excel[col].astype(str)
+                    # Si es datetime normal
+                    elif pd.api.types.is_datetime64_any_dtype(df_excel[col]):
 
-            # 🔥 También convierte objetos raros a string
+                        df_excel[col] = (
+                            pd.to_datetime(df_excel[col], errors="coerce")
+                        )
+
+                except Exception:
+                    pass
+
+            # Evita problemas con NaN
             df_excel = df_excel.fillna("")
 
+            # 🔥 IMPORTANTE: exportar df_excel y NO df
             df_excel.to_excel(
                 writer,
                 index=False,
@@ -497,10 +506,12 @@ with tab2:
     else:
         df = get_mesas()
         if "created_at" in df.columns:
-                df["created_at"] = (
-                    pd.to_datetime(df["created_at"], utc=True)
-                    .dt.tz_convert("America/Argentina/Buenos_Aires")
-            )
+
+            df["created_at"] = (
+                pd.to_datetime(df["created_at"], utc=True)
+                .dt.tz_convert("America/Argentina/Buenos_Aires")
+                .dt.strftime("%d/%m/%Y %H:%M:%S")
+        )
         st.markdown(
             "🟢 **Mesa Verificada** &nbsp;&nbsp;&nbsp; 🔴 **Mesa No verificada**"
         )
@@ -620,7 +631,55 @@ with tab2:
                 "resultados_completos.xlsx",
                 use_container_width=True,
             )
+            # =========================
+            # 🚨 MESAS FALTANTES
+            # =========================
+            st.divider()
+            st.markdown("## 🚨 Mesas faltantes de carga")
 
+            # Todas las mesas esperadas
+            todas_mesas = set(range(1, TOTAL_MESAS + 1))
+
+            # Mesas cargadas realmente
+            mesas_cargadas_set = set(
+                pd.to_numeric(df["mesa"], errors="coerce")
+                .dropna()
+                .astype(int)
+                .tolist()
+            )
+
+            # Diferencia
+            mesas_faltantes = sorted(list(todas_mesas - mesas_cargadas_set))
+
+            if mesas_faltantes:
+
+                # Crear dataframe
+                df_faltantes = pd.DataFrame({
+                    "Mesa faltante": mesas_faltantes,
+                    "Fiscal esperado": [f"fiscal{i}" for i in mesas_faltantes]
+                })
+
+                st.error(f"⚠️ Faltan cargar {len(df_faltantes)} mesas")
+
+                st.dataframe(
+                    df_faltantes,
+                    use_container_width=True
+                )
+
+                # Exportar Excel
+                excel_faltantes = generar_excel({
+                    "Mesas_Faltantes": df_faltantes
+                })
+
+                st.download_button(
+                    "📥 Descargar Mesas Faltantes",
+                    excel_faltantes,
+                    "mesas_faltantes.xlsx",
+                    use_container_width=True,
+                )
+
+            else:
+                st.success("✅ Todas las mesas fueron cargadas")
             # =========================
             # 🎯 FILTRO POR MESA (ARREGLADO)
             # =========================

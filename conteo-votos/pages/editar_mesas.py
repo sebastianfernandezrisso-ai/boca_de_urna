@@ -50,7 +50,7 @@ edited = st.data_editor(
     df,
     use_container_width=True,
     num_rows="fixed",
-    disabled=["id", "mesa", "sede", "localidad", "created_at"],
+    disabled=["mesa", "sede", "localidad", "created_at"],
     column_config={
         "verificado": st.column_config.CheckboxColumn("✔ Verificado")
     },
@@ -75,7 +75,7 @@ with col1:
                         recurridos = :recurridos,
                         nulos = :nulos,
                         verificado = :verificado
-                    WHERE id = :id
+                    WHERE mesa = :mesa
                 """), {
                     "movimiento": int(row["Lista movimiento"]),
                     "lista2": int(row["Multicolor"]),
@@ -84,7 +84,7 @@ with col1:
                     "recurridos": int(row["recurridos"]),
                     "nulos": int(row["nulos"]),
                     "verificado": bool(row["verificado"]),
-                    "id": int(row["id"]),
+                    
                 })
 
         get_mesas.clear()

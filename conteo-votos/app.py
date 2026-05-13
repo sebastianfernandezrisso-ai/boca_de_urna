@@ -285,19 +285,56 @@ if st.session_state.rol in ["admin", "superadmin"]:
     ]
 
     if not df_metrics.empty:
+
         df_metrics[cols] = (
-            df_metrics[cols].apply(pd.to_numeric, errors="coerce").fillna(0)
+            df_metrics[cols]
+            .apply(pd.to_numeric, errors="coerce")
+            .fillna(0)
         )
 
-        total_votos = int(df_metrics[cols].sum().sum())
-        mesas_cargadas = len(df_metrics)
+        # =========================
+        # ESCRUTINIO
+        # =========================
+        total_votos = int(
+            df_metrics[cols].sum().sum()
+        )
 
-        totales_listas = df_metrics[["Lista movimiento", "Multicolor"]].sum()
+        # Solo mesas con escrutinio real
+        df_escrutinio = df_metrics[
+            df_metrics[cols]
+            .fillna(0)
+            .sum(axis=1) > 0
+        ]
+
+        mesas_cargadas = len(df_escrutinio)
+
+        totales_listas = df_metrics[
+            ["Lista movimiento", "Multicolor"]
+        ].sum()
 
         lista_ganadora = totales_listas.idxmax()
-        diferencia = int(totales_listas.max() - totales_listas.min())
 
-        participacion = (total_votos / PADRON_TOTAL) * 100 if total_votos > 0 else 0
+        diferencia = int(
+            totales_listas.max() - totales_listas.min()
+        )
+
+        # =========================
+        # PARTICIPACION REAL TAB 4
+        # =========================
+        df_metrics["cantidad_voto"] = pd.to_numeric(
+            df_metrics["cantidad_voto"],
+            errors="coerce"
+        ).fillna(0)
+
+        total_participacion = int(
+            df_metrics["cantidad_voto"].sum()
+        )
+
+        participacion = (
+            total_participacion / PADRON_TOTAL * 100
+            if total_participacion > 0
+            else 0
+        )
 
     else:
         total_votos = 0
@@ -306,18 +343,31 @@ if st.session_state.rol in ["admin", "superadmin"]:
         diferencia = 0
         participacion = 0
 
-    progreso = mesas_cargadas / TOTAL_MESAS if TOTAL_MESAS else 0
+    progreso = (
+        mesas_cargadas / TOTAL_MESAS
+        if TOTAL_MESAS
+        else 0
+    )
 
     col1, col2, col3, col4, col5 = st.columns(5)
 
     col1.metric("Mesas", mesas_cargadas)
     col2.metric("Votos", total_votos)
-    col3.metric("Participación", f"{participacion:.2f}%")
-    col4.metric("% Escrutado", f"{progreso*100:.2f}%")
-    col5.metric("Ganador", lista_ganadora, f"+{diferencia}")
+    col3.metric(
+        "Participación",
+        f"{participacion:.2f}%"
+    )
+    col4.metric(
+        "% Escrutado",
+        f"{progreso*100:.2f}%"
+    )
+    col5.metric(
+        "Ganador",
+        lista_ganadora,
+        f"+{diferencia}"
+    )
 
     st.progress(progreso)
-
 # =========================
 # TABS
 # =========================

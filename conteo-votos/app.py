@@ -1092,6 +1092,38 @@ with tab4:
                     "% Part.": st.column_config.NumberColumn("Participación", format="%.2f%%"),
                     "hora_participacion": "Últ. Corte"
                 }
+                
+            )
+                        # =========================
+            # ⬇️ EXPORTAR PARTICIPACION
+            # =========================
+            st.divider()
+
+            st.markdown("### 📥 Descargar participación")
+
+            df_export_participacion = df_con_datos[
+                [
+                    "mesa",
+                    "localidad",
+                    "cantidad_voto",
+                    "Total Padrón",
+                    "% Part.",
+                    "hora_participacion",
+                ]
+            ].copy()
+
+            excel_participacion = generar_excel(
+                {
+                    "Participacion": df_export_participacion
+                }
+            )
+
+            st.download_button(
+                "📥 Descargar tabla completa de participación",
+                data=excel_participacion,
+                file_name="participacion_completa.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                use_container_width=True,
             )
         #else:
             #st.info("Aún no hay datos de participación cargados.")

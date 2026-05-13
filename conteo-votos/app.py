@@ -112,6 +112,7 @@ if "dict_padron" not in st.session_state:
 def generar_excel(df_dict):
     import io
     from openpyxl.chart import PieChart, Reference
+    from openpyxl import Workbook
 
     output = io.BytesIO()
 
@@ -122,40 +123,17 @@ def generar_excel(df_dict):
         # =========================
         for nombre_hoja, df in df_dict.items():
 
-            # Copia segura
-            df_excel = df.copy()
+            df_export = df.copy()
 
-            # Convertir TODAS las columnas datetime timezone-aware
-            for col in df_excel.columns:
+    # Remover timezone de columnas datetime
+            for col in df_export.columns:
+                if pd.api.types.is_datetime64tz_dtype(df_export[col]):
+                    df_export[col] = df_export[col].dt.tz_localize(None)
 
-                try:
-
-                    # Si es datetime con timezone
-                    if pd.api.types.is_datetime64tz_dtype(df_excel[col]):
-
-                        df_excel[col] = (
-                            pd.to_datetime(df_excel[col], errors="coerce")
-                            .dt.tz_localize(None)
-                        )
-
-                    # Si es datetime normal
-                    elif pd.api.types.is_datetime64_any_dtype(df_excel[col]):
-
-                        df_excel[col] = (
-                            pd.to_datetime(df_excel[col], errors="coerce")
-                        )
-
-                except Exception:
-                    pass
-
-            # Evita problemas con NaN
-            df_excel = df_excel.fillna("")
-
-            # 🔥 IMPORTANTE: exportar df_excel y NO df
-            df_excel.to_excel(
-                writer,
-                index=False,
-                sheet_name=nombre_hoja[:31]
+            df_export.to_excel(
+        writer,
+        index=False,
+        sheet_name=nombre_hoja[:31]
             )
 
         wb = writer.book
@@ -169,25 +147,19 @@ def generar_excel(df_dict):
 
         if totales_df is not None and not totales_df.empty:
 
+            # Escribir datos para gráfico
             ws_chart.append(["Lista", "Votos"])
 
             for _, row in totales_df.iterrows():
                 ws_chart.append([row["Lista"], row["Votos"]])
 
+            # Crear gráfico de torta
             pie = PieChart()
-
             labels = Reference(
-                ws_chart,
-                min_col=1,
-                min_row=2,
-                max_row=len(totales_df) + 1
+                ws_chart, min_col=1, min_row=2, max_row=len(totales_df) + 1
             )
-
             data = Reference(
-                ws_chart,
-                min_col=2,
-                min_row=1,
-                max_row=len(totales_df) + 1
+                ws_chart, min_col=2, min_row=1, max_row=len(totales_df) + 1
             )
 
             pie.add_data(data, titles_from_data=True)
@@ -197,6 +169,7 @@ def generar_excel(df_dict):
             ws_chart.add_chart(pie, "D2")
 
     return output.getvalue()
+
 
 # =========================
 # LOGIN
@@ -505,13 +478,7 @@ with tab2:
         )
     else:
         df = get_mesas()
-        if "created_at" in df.columns:
 
-            df["created_at"] = (
-                pd.to_datetime(df["created_at"], utc=True)
-                .dt.tz_convert("America/Argentina/Buenos_Aires")
-                .dt.strftime("%d/%m/%Y %H:%M:%S")
-        )
         st.markdown(
             "🟢 **Mesa Verificada** &nbsp;&nbsp;&nbsp; 🔴 **Mesa No verificada**"
         )
@@ -531,6 +498,7 @@ with tab2:
                 "nulos",
             ]
 
+          
             # =========================
             # NORMALIZAR
             # =========================
@@ -541,13 +509,52 @@ with tab2:
             )
 
             # =========================
+            # MESAS CON ESCRUTINIO REAL
+            # =========================
+            cols_escrutinio = [
+                "Lista movimiento",
+                "Multicolor",
+                "blanco",
+                "impugnados",
+                "recurridos",
+                "nulos",
+            ]
+
+            # Solo mesas con votos cargados en TAB 2
+            df_escrutinio = df[
+                df[cols_escrutinio]
+                .fillna(0)
+                .sum(axis=1) > 0
+            ]
+
+            mesas_cargadas_set = set(
+                df_escrutinio["mesa"].astype(int)
+            )
+
+            # =========================
+            # MESAS FALTANTES
+            # =========================
+            todas_mesas = set(range(1, TOTAL_MESAS + 1))
+
+            mesas_faltantes = sorted(
+                list(todas_mesas - mesas_cargadas_set)
+            )
+
+            st.metric(
+                "Mesas faltantes de carga",
+                len(mesas_faltantes)
+            )
+
+            with st.expander("Ver mesas faltantes"):
+                st.write(mesas_faltantes)
+
+            # =========================
             # DATA EDITOR
             # =========================
             edited_df = st.data_editor(
                 df,
                 use_container_width=True,
                 disabled=[
-                    
                     "mesa",
                     "sede",
                     "localidad",
@@ -560,11 +567,12 @@ with tab2:
                     "created_at",
                 ],
                 column_config={
-                    "verificado": st.column_config.CheckboxColumn("✔ Verificado")
+                    "verificado": st.column_config.CheckboxColumn(
+                        "✔ Verificado"
+                    )
                 },
                 key="editor_verificacion",
             )
-
             # =========================
             # GUARDAR VERIFICACIÓN
             # =========================
@@ -631,55 +639,7 @@ with tab2:
                 "resultados_completos.xlsx",
                 use_container_width=True,
             )
-            # =========================
-            # 🚨 MESAS FALTANTES
-            # =========================
-            st.divider()
-            st.markdown("## 🚨 Mesas faltantes de carga")
 
-            # Todas las mesas esperadas
-            todas_mesas = set(range(1, TOTAL_MESAS + 1))
-
-            # Mesas cargadas realmente
-            mesas_cargadas_set = set(
-                pd.to_numeric(df["mesa"], errors="coerce")
-                .dropna()
-                .astype(int)
-                .tolist()
-            )
-
-            # Diferencia
-            mesas_faltantes = sorted(list(todas_mesas - mesas_cargadas_set))
-
-            if mesas_faltantes:
-
-                # Crear dataframe
-                df_faltantes = pd.DataFrame({
-                    "Mesa faltante": mesas_faltantes,
-                    "Fiscal esperado": [f"fiscal{i}" for i in mesas_faltantes]
-                })
-
-                st.error(f"⚠️ Faltan cargar {len(df_faltantes)} mesas")
-
-                st.dataframe(
-                    df_faltantes,
-                    use_container_width=True
-                )
-
-                # Exportar Excel
-                excel_faltantes = generar_excel({
-                    "Mesas_Faltantes": df_faltantes
-                })
-
-                st.download_button(
-                    "📥 Descargar Mesas Faltantes",
-                    excel_faltantes,
-                    "mesas_faltantes.xlsx",
-                    use_container_width=True,
-                )
-
-            else:
-                st.success("✅ Todas las mesas fueron cargadas")
             # =========================
             # 🎯 FILTRO POR MESA (ARREGLADO)
             # =========================
